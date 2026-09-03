@@ -8,22 +8,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
-      - run: |
-          uv run python - << 'PYEOF'
-          import sys, numpy, duckdb
-          print("python", sys.version.split()[0], "numpy", numpy.__version__, "duckdb", duckdb.__version__)
-          from data_engine.generator import TransactionGenerator, WindowConfig
-          from data_engine.faults import BankOutageInjector
-          from datetime import datetime, timezone
-          from diagnosis.anomaly_scan import scan
-          wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=timezone.utc))
-          con = TransactionGenerator(seed=42, window=wc, txns_per_day=4000).generate()
-          print("hash sample:", con.execute("SELECT txn_id, hash(txn_id) % 100 FROM transactions LIMIT 5").fetchall())
-          print("window txns:", con.execute("SELECT COUNT(*) FROM transactions WHERE ts >= ? AND ts < ?", [wc.current_window_start, wc.current_window_end]).fetchone())
-          print("amounts>10k in window:", con.execute("SELECT COUNT(*) FROM transactions WHERE amount > 10000 AND ts >= ? AND ts < ?", [wc.current_window_start, wc.current_window_end]).fetchone())
-          f = BankOutageInjector(wc, "ICICI")
-          f.inject(con)
-          print("bank rates in window:", con.execute("SELECT issuer_bank, ROUND(AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END),3) FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1", [wc.current_window_start, wc.current_window_end]).fetchall())
-          segs = scan(con, wc.current_window_start, wc.current_window_end, wc.start, wc.current_window_start)
-          print("segments:", [(s.dimension, s.value, round(s.drop,3)) for s in segs[:4]])
-          PYEOF
+      - run: uv run python /tmp/probe2.py
+      - name: upload probe
+        if: always()
+        run: cat /tmp/probe2.py
