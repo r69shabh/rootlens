@@ -33,9 +33,12 @@ def _gt(sid):
     sc = get_scenario(sid)
     con, faults = sc.build_dataset()
     con.close()
-    return {"scenario_id": sid, "difficulty_tier": sc.tier,
-            "expected_labels": [f.label for f in faults],
-            "expected_fault_types": sorted({f.fault_type for f in faults})}
+    return {
+        "scenario_id": sid,
+        "difficulty_tier": sc.tier,
+        "expected_labels": [f.label for f in faults],
+        "expected_fault_types": sorted({f.fault_type for f in faults}),
+    }
 
 
 @pytest.mark.parametrize("seed", SEEDS)

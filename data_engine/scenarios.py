@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, replace
 
+import duckdb
+
 from data_engine.faults import (
     BankOutageInjector,
     CheckoutFunnelBreakInjector,
@@ -22,13 +24,36 @@ def record_fault_events(con, faults: list[InjectedFault]) -> None:
     if not faults:
         return
     rows = [
-        (f"flt_{i:03d}", f.fault_type, f.start_ts, f.end_ts,
-         json.dumps(f.affected_scope, default=str), f.difficulty_tier)
+        (
+            f"flt_{i:03d}",
+            f.fault_type,
+            f.start_ts,
+            f.end_ts,
+            json.dumps(f.affected_scope, default=str),
+            f.difficulty_tier,
+        )
         for i, f in enumerate(faults)
     ]
-    con.executemany(
-        "INSERT INTO fault_events VALUES (?, ?, ?, ?, ?, ?)", rows
-    )
+    con.executemany("INSERT INTO fault_events VALUES (?, ?, ?, ?, ?, ?)", rows)
+
+
+def _eval_con_for(faults: list[InjectedFault]) -> duckdb.DuckDBPyConnection:
+    """A second connection that holds ONLY the fault_events table.
+
+    The data connection the agent queries never has this table, so a whitelist
+    bug can never leak ground truth into the model's context. The eval-only
+    connection is closed after the eval harness reads from it.
+    """
+    eval_con = duckdb.connect()
+    eval_con.execute("""
+        CREATE TABLE fault_events (
+            fault_id VARCHAR, fault_type VARCHAR,
+            start_ts TIMESTAMP, end_ts TIMESTAMP,
+            affected_scope JSON, difficulty_tier VARCHAR
+        )
+    """)
+    record_fault_events(eval_con, faults)
+    return eval_con
 
 
 SEED = 42
@@ -47,23 +72,44 @@ class Scenario:
     _injectors: tuple = ()
 
     def build_dataset(self):
+        """Returns (data_con, faults).
+
+        `data_con` is what the agent queries: it has the `transactions` table
+        only, never `fault_events`. The eval-only connection holding the
+        ground-truth table is created on demand via `eval_con()`.
+        """
         con, faults = self.build()
-        record_fault_events(con, faults)
         return con, faults
+
+    def eval_con(self) -> duckdb.DuckDBPyConnection:
+        """Eval-only DuckDB with the fault_events ground-truth table.
+
+        Eval scripts use this for scoring; the agent's tools never see it.
+        Caller is responsible for closing it.
+        """
+        _, faults = self.build()
+        return _eval_con_for(faults)
 
     def with_seed(self, seed: int) -> Scenario:
         """Re-bind this scenario to a different generator seed."""
-        inj_list = list(self._injectors) if self._injectors else (
-            [self._injector] if self._injector else None
+        inj_list = (
+            list(self._injectors)
+            if self._injectors
+            else ([self._injector] if self._injector else None)
         )
-        return replace(self, seed=seed, build=_make(
-            injector=self._injector, injectors=inj_list,
-            tier=self.tier, seed=seed,
-        ))
+        return replace(
+            self,
+            seed=seed,
+            build=_make(
+                injector=self._injector,
+                injectors=inj_list,
+                tier=self.tier,
+                seed=seed,
+            ),
+        )
 
     def ground_truth(self) -> dict:
-        con, faults = self.build_dataset()
-        con.close()
+        _, faults = self.build_dataset()
         return {
             "scenario_id": self.scenario_id,
             "difficulty_tier": self.tier,
@@ -92,105 +138,135 @@ def _make(gen_kwargs=None, injector=None, injectors=None, tier=None, seed: int =
         if tier is not None:
             injected = [replace(f, difficulty_tier=tier) for f in injected]
         return con, injected
+
     return build
 
 
 SCENARIOS: dict[str, Scenario] = {
     "healthy": Scenario(
-        "healthy", "clean",
+        "healthy",
+        "clean",
         "No fault injected: false-positive control scenario.",
         _make(),
     ),
     "bank_outage_icici": Scenario(
-        "bank_outage_icici", "clean",
+        "bank_outage_icici",
+        "clean",
         "Issuer bank outage on ICICI.",
         _make(injector=BankOutageInjector(_base_window(), "ICICI")),
         _injector=BankOutageInjector(_base_window(), "ICICI"),
     ),
     "bank_outage_kotak": Scenario(
-        "bank_outage_kotak", "clean",
+        "bank_outage_kotak",
+        "clean",
         "Issuer bank outage on KOTAK (smallest issuer, lower volume).",
         _make(injector=BankOutageInjector(_base_window(), "KOTAK")),
         _injector=BankOutageInjector(_base_window(), "KOTAK"),
     ),
     "network_degradation_visa": Scenario(
-        "network_degradation_visa", "clean",
+        "network_degradation_visa",
+        "clean",
         "Card network degradation on visa across all issuers.",
         _make(injector=NetworkDegradationInjector(_base_window(), "visa")),
         _injector=NetworkDegradationInjector(_base_window(), "visa"),
     ),
     "network_degradation_rupay": Scenario(
-        "network_degradation_rupay", "clean",
+        "network_degradation_rupay",
+        "clean",
         "Card network degradation on rupay (low volume network).",
         _make(injector=NetworkDegradationInjector(_base_window(), "rupay", failure_rate=0.50)),
         _injector=NetworkDegradationInjector(_base_window(), "rupay", failure_rate=0.50),
     ),
     "high_ticket_rule_10k": Scenario(
-        "high_ticket_rule_10k", "clean",
+        "high_ticket_rule_10k",
+        "clean",
         "Risk rule starts declining amount > 10000 mid-window.",
         _make(injector=HighTicketRuleInjector(_base_window(), 10000)),
         _injector=HighTicketRuleInjector(_base_window(), 10000),
     ),
     "compound_outage_plus_rule": Scenario(
-        "compound_outage_plus_rule", "compound",
+        "compound_outage_plus_rule",
+        "compound",
         "ICICI outage overlapping with a >10000 rule trigger.",
-        _make(injectors=[BankOutageInjector(_base_window(), "ICICI"),
-                         HighTicketRuleInjector(_base_window(), 10000)]),
-        _injectors=(BankOutageInjector(_base_window(), "ICICI"),
-                    HighTicketRuleInjector(_base_window(), 10000)),
+        _make(
+            injectors=[
+                BankOutageInjector(_base_window(), "ICICI"),
+                HighTicketRuleInjector(_base_window(), 10000),
+            ]
+        ),
+        _injectors=(
+            BankOutageInjector(_base_window(), "ICICI"),
+            HighTicketRuleInjector(_base_window(), 10000),
+        ),
     ),
 }
 
 
 for _w2 in (
     Scenario(
-        "retry_storm_gateway", "clean",
+        "retry_storm_gateway",
+        "clean",
         "Diffuse retry storm: timeouts + duplicate attempts from mid-window.",
         _make(injector=RetryStormInjector(_base_window())),
         _injector=RetryStormInjector(_base_window()),
     ),
     Scenario(
-        "checkout_funnel_break", "clean",
+        "checkout_funnel_break",
+        "clean",
         "Client-side checkout break: all payment methods fail with checkout_error.",
         _make(injector=CheckoutFunnelBreakInjector(_base_window())),
         _injector=CheckoutFunnelBreakInjector(_base_window()),
     ),
     Scenario(
-        "settlement_delay_mch007", "clean",
+        "settlement_delay_mch007",
+        "clean",
         "One merchant's successes stall as pending; nothing actually fails.",
         _make(injector=SettlementDelayInjector(_base_window(), "mch_007")),
         _injector=SettlementDelayInjector(_base_window(), "mch_007"),
     ),
     Scenario(
-        "red_herring_campaign_vs_outage", "red_herring",
+        "red_herring_campaign_vs_outage",
+        "red_herring",
         "Benign campaign volume spike in north co-occurs with a real HDFC outage.",
-        _make(injectors=[MarketingSpikeInjector(_base_window(), "north"),
-                         BankOutageInjector(_base_window(), "HDFC")],
-              tier="red_herring"),
-        _injectors=(MarketingSpikeInjector(_base_window(), "north"),
-                    BankOutageInjector(_base_window(), "HDFC")),
+        _make(
+            injectors=[
+                MarketingSpikeInjector(_base_window(), "north"),
+                BankOutageInjector(_base_window(), "HDFC"),
+            ],
+            tier="red_herring",
+        ),
+        _injectors=(
+            MarketingSpikeInjector(_base_window(), "north"),
+            BankOutageInjector(_base_window(), "HDFC"),
+        ),
     ),
     Scenario(
-        "benign_volume_spike", "red_herring",
+        "benign_volume_spike",
+        "red_herring",
         "False-positive control: campaign spike alone, healthy success rates.",
         _make(injector=MarketingSpikeInjector(_base_window(), "north")),
         _injector=MarketingSpikeInjector(_base_window(), "north"),
     ),
     Scenario(
-        "noisy_bank_outage_hdfc", "noisy",
+        "noisy_bank_outage_hdfc",
+        "noisy",
         "Partial HDFC outage (~62%), mixed decline codes.",
-        _make(injector=BankOutageInjector(_base_window(), "HDFC", failure_rate=0.62,
-                                          mixed_codes=True),
-              tier="noisy"),
-        _injector=BankOutageInjector(_base_window(), "HDFC", failure_rate=0.62,
-                                     mixed_codes=True),
+        _make(
+            injector=BankOutageInjector(
+                _base_window(), "HDFC", failure_rate=0.62, mixed_codes=True
+            ),
+            tier="noisy",
+        ),
+        _injector=BankOutageInjector(_base_window(), "HDFC", failure_rate=0.62, mixed_codes=True),
     ),
     Scenario(
-        "noisy_network_amex", "noisy",
+        "noisy_network_amex",
+        "noisy",
         "Amex degradation at the low end of the band and the lowest volume network.",
-        _make(injector=NetworkDegradationInjector(_base_window(), "amex",
-                                                  failure_rate=0.42),
-              tier="noisy"),
+        _make(
+            injector=NetworkDegradationInjector(_base_window(), "amex", failure_rate=0.42),
+            tier="noisy",
+        ),
         _injector=NetworkDegradationInjector(_base_window(), "amex", failure_rate=0.42),
     ),
 ):

@@ -42,8 +42,11 @@ def test_unknown_tool_raises(healthy_con):
 def test_query_by_issuer_bank_filters_correctly(healthy_con):
     t = _tools(healthy_con)
     rows = t.query_transactions(
-        filters={"issuer_bank": "ICICI"}, group_by=["status"],
-        metrics=["count"], start=WC.start, end=WC.end,
+        filters={"issuer_bank": "ICICI"},
+        group_by=["status"],
+        metrics=["count"],
+        start=WC.start,
+        end=WC.end,
     )
     total_icici = healthy_con.execute(
         "SELECT COUNT(*) FROM transactions WHERE issuer_bank='ICICI' AND ts >= ? AND ts < ?",
@@ -56,8 +59,13 @@ def test_timeseries_and_baseline_compare(healthy_con):
     t = _tools(healthy_con)
     ts = t.timeseries("success_rate", "hour", WC.current_window_start, WC.current_window_end)
     assert len(ts) >= 2
-    z = t.baseline_compare("success_rate", WC.current_window_start, WC.current_window_end,
-                           WC.start, WC.current_window_start)
+    z = t.baseline_compare(
+        "success_rate",
+        WC.current_window_start,
+        WC.current_window_end,
+        WC.start,
+        WC.current_window_start,
+    )
     assert abs(z["z_score"]) < 3  # healthy data: no big deviation
 
 
@@ -78,7 +86,9 @@ def test_result_capped_with_truncation_flag(healthy_con):
     t = _tools(healthy_con)
     rows = t.query_transactions(
         group_by=["issuer_bank", "payment_method", "status", "failure_code"],
-        metrics=["count"], start=WC.start, end=WC.end,
+        metrics=["count"],
+        start=WC.start,
+        end=WC.end,
     )
     assert len(rows) <= MAX_RESULT_ROWS + 1  # +1 for the truncation marker
     flagged = [r for r in rows if r.get(TRUNCATION_KEY)]
@@ -91,11 +101,14 @@ def test_result_capped_with_truncation_flag(healthy_con):
 def test_truncation_marker_appears_on_exploding_groupby(monkeypatch, healthy_con):
     # force a tiny cap so a single 5-column groupby triggers truncation
     import diagnosis.tools as tools_mod
+
     monkeypatch.setattr(tools_mod, "MAX_RESULT_ROWS", 5)
     t = _tools(healthy_con)
     rows = t.query_transactions(
         group_by=["issuer_bank", "payment_method", "status", "failure_code"],
-        metrics=["count"], start=WC.start, end=WC.end,
+        metrics=["count"],
+        start=WC.start,
+        end=WC.end,
     )
     assert len(rows) == 6  # 5 data rows + 1 truncation marker
     assert rows[-1].get(TRUNCATION_KEY) is True
@@ -109,8 +122,9 @@ def test_baseline_compare_marks_unreliable_with_one_hour(healthy_con):
     tiny_start = WC.start
     tiny_end = WC.start + timedelta(minutes=30)
     t = _tools(healthy_con)
-    out = t.baseline_compare("success_rate", WC.current_window_start, WC.current_window_end,
-                             tiny_start, tiny_end)
+    out = t.baseline_compare(
+        "success_rate", WC.current_window_start, WC.current_window_end, tiny_start, tiny_end
+    )
     assert out["baseline"]["n_hours"] == 1
     assert out.get("z_score_reliable") is False
     # magnitude sanity: with the new std floor the score is bounded, not 1e6

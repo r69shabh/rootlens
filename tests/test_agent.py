@@ -9,8 +9,10 @@ from diagnosis.llm_client import ScriptedLLMClient, parse_json_response
 
 WC = WindowConfig(start=DEFAULT_WINDOW_START)
 ARGS = dict(
-    current_start=WC.current_window_start, current_end=WC.current_window_end,
-    baseline_start=WC.start, baseline_end=WC.current_window_start,
+    current_start=WC.current_window_start,
+    current_end=WC.current_window_end,
+    baseline_start=WC.start,
+    baseline_end=WC.current_window_start,
 )
 
 
@@ -22,14 +24,30 @@ def test_parse_json_response_handles_fences_and_prose():
 
 def test_agent_runs_tool_calls_then_verdict():
     responses = [
-        json.dumps({"thought": "check failure codes", "tool": "query_transactions",
-                    "args": {"filters": {"status": "failed"}, "group_by": ["failure_code"],
-                             "metrics": ["count"], "start": str(WC.current_window_start),
-                             "end": str(WC.current_window_end)}}),
-        json.dumps({"verdict": {"root_cause": "test_cause:x", "confidence": 0.9,
-                                "evidence": ["call_001"],
-                                "disconfirmation": ["checked other banks: fine"],
-                                "impact": {"transactions_affected": 10}}}),
+        json.dumps(
+            {
+                "thought": "check failure codes",
+                "tool": "query_transactions",
+                "args": {
+                    "filters": {"status": "failed"},
+                    "group_by": ["failure_code"],
+                    "metrics": ["count"],
+                    "start": str(WC.current_window_start),
+                    "end": str(WC.current_window_end),
+                },
+            }
+        ),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "test_cause:x",
+                    "confidence": 0.9,
+                    "evidence": ["call_001"],
+                    "disconfirmation": ["checked other banks: fine"],
+                    "impact": {"transactions_affected": 10},
+                }
+            }
+        ),
     ]
     con = get_scenario("healthy").build_dataset()[0]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="t1", **ARGS)
@@ -41,8 +59,15 @@ def test_agent_runs_tool_calls_then_verdict():
 
 
 def test_agent_respects_round_cap_and_goes_inconclusive():
-    responses = [json.dumps({"thought": "still digging", "tool": "query_transactions",
-                             "args": {"metrics": ["count"]}})] * 12
+    responses = [
+        json.dumps(
+            {
+                "thought": "still digging",
+                "tool": "query_transactions",
+                "args": {"metrics": ["count"]},
+            }
+        )
+    ] * 12
     con = get_scenario("healthy").build_dataset()[0]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="t2", max_rounds=3, **ARGS)
     assert result.status == "inconclusive"
@@ -52,11 +77,26 @@ def test_agent_respects_round_cap_and_goes_inconclusive():
 def test_agent_survives_tool_errors_and_rejects_empty_verdicts():
     responses = [
         json.dumps({"tool": "query_transactions", "args": {"filters": {"evil": 1}}}),
-        json.dumps({"verdict": {"root_cause": "ok:x", "confidence": 0.9,
-                                "evidence": [], "disconfirmation": []}}),
-        json.dumps({"verdict": {"root_cause": "ok:x", "confidence": 0.9,
-                                "evidence": ["call_001"],
-                                "disconfirmation": ["checked others: fine"]}}),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "ok:x",
+                    "confidence": 0.9,
+                    "evidence": [],
+                    "disconfirmation": [],
+                }
+            }
+        ),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "ok:x",
+                    "confidence": 0.9,
+                    "evidence": ["call_001"],
+                    "disconfirmation": ["checked others: fine"],
+                }
+            }
+        ),
     ]
     con = get_scenario("healthy").build_dataset()[0]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="t3", **ARGS)

@@ -16,6 +16,8 @@ FAULT_PRIORS: dict[str, float] = {
 
 
 def priors_context() -> str:
-    lines = [f"- {name}: {freq:.0%}" for name, freq in sorted(
-        FAULT_PRIORS.items(), key=lambda kv: -kv[1])]
+    lines = [
+        f"- {name}: {freq:.0%}"
+        for name, freq in sorted(FAULT_PRIORS.items(), key=lambda kv: -kv[1])
+    ]
     return "Historical fault-rate priors (frequency of past root causes):\n" + "\n".join(lines)

@@ -16,8 +16,9 @@ WC = WindowConfig(start=DEFAULT_WINDOW_START)
 
 
 def _scan(con):
-    return scan(con, WC.current_window_start, WC.current_window_end,
-                WC.start, WC.current_window_start)
+    return scan(
+        con, WC.current_window_start, WC.current_window_end, WC.start, WC.current_window_start
+    )
 
 
 def test_healthy_window_has_no_anomalies():
@@ -69,6 +70,5 @@ def test_scan_thresholds_are_centralized():
 def test_onset_returns_none_when_no_hour_drops_below_threshold():
     # healthy scenario: no hour should fall > ONSET_MIN_DROP below baseline
     con = get_scenario("healthy").build_dataset()[0]
-    onset = estimate_onset(con, WC.current_window_start, WC.current_window_end,
-                           baseline_rate=0.97)
+    onset = estimate_onset(con, WC.current_window_start, WC.current_window_end, baseline_rate=0.97)
     assert onset is None

@@ -96,21 +96,22 @@ CREATE TABLE IF NOT EXISTS transactions (
     merchant_id VARCHAR,
     geo_region VARCHAR
 );
-CREATE TABLE IF NOT EXISTS fault_events (
-    fault_id VARCHAR,
-    fault_type VARCHAR,
-    start_ts TIMESTAMP,
-    end_ts TIMESTAMP,
-    affected_scope JSON,
-    difficulty_tier VARCHAR
-);
 """
 
 
 COLUMNS = [
-    "txn_id", "ts", "amount", "currency", "payment_method", "card_network",
-    "issuer_bank", "status", "failure_code", "gateway_latency_ms",
-    "merchant_id", "geo_region",
+    "txn_id",
+    "ts",
+    "amount",
+    "currency",
+    "payment_method",
+    "card_network",
+    "issuer_bank",
+    "status",
+    "failure_code",
+    "gateway_latency_ms",
+    "merchant_id",
+    "geo_region",
 ]
 
 
@@ -158,8 +159,7 @@ class TransactionGenerator:
         failed = rng.random(n) < BASE_FAILURE_RATE
         status = np.where(failed, "failed", "success")
         code_idx = {
-            m: rng.integers(0, len(codes), size=n)
-            for m, codes in FAILURE_CODES_BY_METHOD.items()
+            m: rng.integers(0, len(codes), size=n) for m, codes in FAILURE_CODES_BY_METHOD.items()
         }
         failure_code = [
             FAILURE_CODES_BY_METHOD[m][code_idx[m][i]] if f else None
@@ -173,9 +173,18 @@ class TransactionGenerator:
         txn_ids = [f"txn_{self.seed:04d}_{day_index:02d}_{i:06d}" for i in range(n)]
         return list(
             zip(
-                txn_ids, ts_py, amounts.tolist(), ["INR"] * n, methods.tolist(),
-                list(card_network), banks.tolist(), status.tolist(), failure_code,
-                latency.tolist(), [f"mch_{m:03d}" for m in merchants], geos.tolist(),
+                txn_ids,
+                ts_py,
+                amounts.tolist(),
+                ["INR"] * n,
+                methods.tolist(),
+                list(card_network),
+                banks.tolist(),
+                status.tolist(),
+                failure_code,
+                latency.tolist(),
+                [f"mch_{m:03d}" for m in merchants],
+                geos.tolist(),
                 strict=True,
             )
         )
@@ -196,9 +205,7 @@ class TransactionGenerator:
             # interpolated: reject quotes to keep TMPDIR-style injection out.
             if "'" in path:
                 raise ValueError(f"unsafe temp path for COPY: {path!r}")
-            con.execute(
-                f"COPY transactions FROM '{path}' (FORMAT CSV, NULLSTR '')"
-            )
+            con.execute(f"COPY transactions FROM '{path}' (FORMAT CSV, NULLSTR '')")
         finally:
             os.unlink(path)
         return con

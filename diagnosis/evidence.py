@@ -19,8 +19,7 @@ class EvidenceEntry:
 
     def summary_for_llm(self) -> str:
         return json.dumps(
-            {"call_id": self.call_id, "tool": self.tool, "args": self.args,
-             "result": self.result},
+            {"call_id": self.call_id, "tool": self.tool, "args": self.args, "result": self.result},
             default=str,
         )
 
@@ -54,7 +53,14 @@ class EvidenceStore:
 
     def to_json(self) -> list[dict]:
         return [
-            {"call_id": e.call_id, "tool": e.tool, "args": e.args, "result": e.result,
-             "row_count": e.row_count, "duration_ms": e.duration_ms, "ts": e.ts}
+            {
+                "call_id": e.call_id,
+                "tool": e.tool,
+                "args": e.args,
+                "result": e.result,
+                "row_count": e.row_count,
+                "duration_ms": e.duration_ms,
+                "ts": e.ts,
+            }
             for e in self.entries
         ]

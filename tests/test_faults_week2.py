@@ -35,7 +35,8 @@ def test_retry_storm_signature():
     assert m["avg_latency"] > h["avg_latency"] + 400
     timeouts = con.execute(
         "SELECT COUNT(*) FROM transactions WHERE ts >= ? AND ts < ? "
-        "AND failure_code = 'gateway_timeout'", [MID, E],
+        "AND failure_code = 'gateway_timeout'",
+        [MID, E],
     ).fetchone()[0]
     assert timeouts > 50
     # scan detects a diffuse degradation
@@ -46,20 +47,29 @@ def test_retry_storm_signature():
 def test_checkout_funnel_break_signature():
     con = get_scenario("checkout_funnel_break").build_dataset()[0]
     # all payment methods elevated AFTER onset, untouched before
-    early = dict(con.execute(
-        """SELECT payment_method,
+    early = dict(
+        con.execute(
+            """SELECT payment_method,
                   AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END)
-           FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1""", [S, MID]).fetchall())
-    late = dict(con.execute(
-        """SELECT payment_method,
+           FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1""",
+            [S, MID],
+        ).fetchall()
+    )
+    late = dict(
+        con.execute(
+            """SELECT payment_method,
                   AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END)
-           FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1""", [MID, E]).fetchall())
+           FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1""",
+            [MID, E],
+        ).fetchall()
+    )
     for method in early:
         assert late[method] > 0.35, (method, late[method])
         assert early[method] < 0.15, (method, early[method])
     codes = con.execute(
         "SELECT COUNT(*) FROM transactions WHERE ts >= ? AND ts < ? "
-        "AND failure_code = 'checkout_error'", [MID, E],
+        "AND failure_code = 'checkout_error'",
+        [MID, E],
     ).fetchone()[0]
     assert codes > 100
 
@@ -68,7 +78,8 @@ def test_settlement_delay_signature():
     con = get_scenario("settlement_delay_mch007").build_dataset()[0]
     pend = con.execute(
         "SELECT COUNT(*) FROM transactions WHERE merchant_id='mch_007' "
-        "AND ts >= ? AND ts < ? AND status='pending'", [MID, E],
+        "AND ts >= ? AND ts < ? AND status='pending'",
+        [MID, E],
     ).fetchone()[0]
     assert pend > 5
     # pending rows carry no failure code — nothing actually failed
@@ -81,7 +92,8 @@ def test_settlement_delay_signature():
     # other merchants unaffected
     other_pending = con.execute(
         "SELECT COUNT(*) FROM transactions WHERE merchant_id != 'mch_007' "
-        "AND ts >= ? AND ts < ? AND status='pending'", [S, E],
+        "AND ts >= ? AND ts < ? AND status='pending'",
+        [S, E],
     ).fetchone()[0]
     assert other_pending == 0
     # scan surfaces the merchant slice
@@ -97,10 +109,14 @@ def test_noisy_bank_outage_partial_signal():
         [S, E],
     ).fetchone()[0]
     assert 0.45 < fr < 0.75
-    codes = {r[0] for r in con.execute(
-        """SELECT DISTINCT failure_code FROM transactions
+    codes = {
+        r[0]
+        for r in con.execute(
+            """SELECT DISTINCT failure_code FROM transactions
            WHERE issuer_bank='HDFC' AND ts >= ? AND ts < ? AND status='failed'""",
-        [S, E]).fetchall()}
+            [S, E],
+        ).fetchall()
+    }
     assert "issuer_declined" in codes and "issuer_unavailable" in codes
     seg = _scan(con)[0]
     assert (seg.dimension, seg.value) == ("issuer_bank", "HDFC")

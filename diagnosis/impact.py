@@ -12,8 +12,7 @@ from __future__ import annotations
 MANUAL_BASELINE_MINUTES = 45.0
 
 
-def estimate_impact(con, current_start, current_end,
-                     elapsed_minutes: float) -> dict:
+def estimate_impact(con, current_start, current_end, elapsed_minutes: float) -> dict:
     row = con.execute(
         """
         SELECT COUNT(*), COALESCE(SUM(amount), 0.0)
@@ -37,7 +36,9 @@ def estimate_impact(con, current_start, current_end,
         "gmv_at_risk_inr": round(gmv_at_risk, 2),
         "gmv_at_risk_per_hour_inr": gmv_per_hour,
         "gmv_protected_estimate_inr": round(gmv_per_hour * hours_saved, 2),
-        "note": ("GMV at risk is an upper bound: all non-success transactions in the "
-                 "window regardless of cause. gmv_protected assumes mitigation at "
-                 "diagnosis time."),
+        "note": (
+            "GMV at risk is an upper bound: all non-success transactions in the "
+            "window regardless of cause. gmv_protected assumes mitigation at "
+            "diagnosis time."
+        ),
     }

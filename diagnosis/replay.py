@@ -11,8 +11,7 @@ from diagnosis.llm_client import LLMClient
 
 
 def _key(system: str, messages: list[dict]) -> str:
-    payload = json.dumps({"system": system, "messages": messages},
-                         sort_keys=True, default=str)
+    payload = json.dumps({"system": system, "messages": messages}, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode()).hexdigest()[:24]
 
 
@@ -27,10 +26,10 @@ class ReplayCache:
         rec = self.records.get(_key(system, messages))
         return rec["response"] if rec else None
 
-    def put(self, system: str, messages: list[dict], response: str,
-            model_name: str = "") -> None:
+    def put(self, system: str, messages: list[dict], response: str, model_name: str = "") -> None:
         self.records[_key(system, messages)] = {
-            "response": response, "model_name": model_name,
+            "response": response,
+            "model_name": model_name,
         }
 
     def save(self) -> None:

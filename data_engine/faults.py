@@ -47,8 +47,9 @@ class BankOutageInjector(FaultInjector):
     fault_type = "bank_outage"
     tier = "clean"
 
-    def __init__(self, window, bank: str, failure_rate: float = 0.90,
-                 mixed_codes: bool = False) -> None:
+    def __init__(
+        self, window, bank: str, failure_rate: float = 0.90, mixed_codes: bool = False
+    ) -> None:
         super().__init__(window)
         if bank not in ISSUER_BANKS:
             raise ValueError(f"unknown bank {bank!r}; expected one of {ISSUER_BANKS}")
@@ -70,8 +71,13 @@ class BankOutageInjector(FaultInjector):
             WHERE issuer_bank = ? AND ts >= ? AND ts < ?
               AND hash(txn_id) % 100 < ?
             """,
-            [self.mixed_codes, self.bank, self.start_ts(), self.end_ts(),
-             int(self.failure_rate * 100)],
+            [
+                self.mixed_codes,
+                self.bank,
+                self.start_ts(),
+                self.end_ts(),
+                int(self.failure_rate * 100),
+            ],
         )
         if not self.mixed_codes:
             # keep a slice succeeding so the signal is realistic, not absolute
@@ -179,8 +185,7 @@ class RetryStormInjector(FaultInjector):
     fault_type = "retry_storm"
     tier = "clean"
 
-    def __init__(self, window, failure_rate: float = 0.35,
-                 retry_fraction: float = 0.40) -> None:
+    def __init__(self, window, failure_rate: float = 0.35, retry_fraction: float = 0.40) -> None:
         super().__init__(window)
         self.failure_rate = failure_rate
         self.retry_fraction = retry_fraction
@@ -202,7 +207,7 @@ class RetryStormInjector(FaultInjector):
         )
         con.execute(
             f"""
-            INSERT INTO transactions ({', '.join(COLUMNS)})
+            INSERT INTO transactions ({", ".join(COLUMNS)})
             SELECT txn_id || '_retry', ts, amount, currency, payment_method,
                    card_network, issuer_bank, status, failure_code,
                    gateway_latency_ms + 1500, merchant_id, geo_region
@@ -216,8 +221,11 @@ class RetryStormInjector(FaultInjector):
             label="retry_storm:gateway",
             start_ts=self.storm_start,
             end_ts=self.end_ts(),
-            affected_scope={"scope": "all_traffic", "started_at": self.storm_start,
-                            "retry_fraction": self.retry_fraction},
+            affected_scope={
+                "scope": "all_traffic",
+                "started_at": self.storm_start,
+                "retry_fraction": self.retry_fraction,
+            },
             difficulty_tier=self.tier,
         )
 
@@ -265,8 +273,7 @@ class SettlementDelayInjector(FaultInjector):
     fault_type = "settlement_delay"
     tier = "clean"
 
-    def __init__(self, window, merchant_id: str = "mch_007",
-                 pending_rate: float = 0.80) -> None:
+    def __init__(self, window, merchant_id: str = "mch_007", pending_rate: float = 0.80) -> None:
         super().__init__(window)
         self.merchant_id = merchant_id
         self.pending_rate = pending_rate
@@ -284,16 +291,14 @@ class SettlementDelayInjector(FaultInjector):
             WHERE merchant_id = ? AND ts >= ? AND ts < ?
               AND status = 'success' AND hash(txn_id) % 100 < ?
             """,
-            [self.merchant_id, self.delay_start, self.end_ts(),
-             int(self.pending_rate * 100)],
+            [self.merchant_id, self.delay_start, self.end_ts(), int(self.pending_rate * 100)],
         )
         return InjectedFault(
             fault_type=self.fault_type,
             label=f"settlement_delay:{self.merchant_id}",
             start_ts=self.delay_start,
             end_ts=self.end_ts(),
-            affected_scope={"merchant_id": self.merchant_id,
-                            "pending_rate": self.pending_rate},
+            affected_scope={"merchant_id": self.merchant_id, "pending_rate": self.pending_rate},
             difficulty_tier=self.tier,
         )
 
@@ -305,8 +310,7 @@ class MarketingSpikeInjector(FaultInjector):
     fault_type = "benign_volume_spike"
     tier = "red_herring"
 
-    def __init__(self, window, geo_region: str = "north",
-                 extra_fraction: float = 1.0) -> None:
+    def __init__(self, window, geo_region: str = "north", extra_fraction: float = 1.0) -> None:
         super().__init__(window)
         self.geo_region = geo_region
         self.extra_fraction = extra_fraction
@@ -314,7 +318,7 @@ class MarketingSpikeInjector(FaultInjector):
     def inject(self, con) -> InjectedFault:
         con.execute(
             f"""
-            INSERT INTO transactions ({', '.join(COLUMNS)})
+            INSERT INTO transactions ({", ".join(COLUMNS)})
             SELECT txn_id || '_camp', ts, amount, currency, payment_method,
                    card_network, issuer_bank, status, failure_code,
                    gateway_latency_ms, merchant_id, geo_region
@@ -322,8 +326,7 @@ class MarketingSpikeInjector(FaultInjector):
             WHERE geo_region = ? AND ts >= ? AND ts < ?
               AND hash(txn_id) % 100 < ?
             """,
-            [self.geo_region, self.start_ts(), self.end_ts(),
-             int(self.extra_fraction * 100)],
+            [self.geo_region, self.start_ts(), self.end_ts(), int(self.extra_fraction * 100)],
         )
         return InjectedFault(
             fault_type=self.fault_type,

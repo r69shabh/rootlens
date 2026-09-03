@@ -34,7 +34,8 @@ def _window():
 with st.sidebar:
     st.header("Run")
     scenario_id = st.selectbox(
-        "Scenario", sorted(SCENARIOS),
+        "Scenario",
+        sorted(SCENARIOS),
         format_func=lambda sid: f"{sid} ({SCENARIOS[sid].tier})",
     )
     mode = st.radio("LLM mode", ["Replay cache", "Live provider"])
@@ -50,31 +51,40 @@ with st.sidebar:
             try:
                 scenario = get_scenario(scenario_id)
                 con, faults = scenario.build_dataset()
-                gt = {"scenario_id": scenario.scenario_id,
-                      "difficulty_tier": scenario.tier,
-                      "expected_labels": [f.label for f in faults],
-                      "expected_fault_types": sorted({f.fault_type for f in faults})}
+                gt = {
+                    "scenario_id": scenario.scenario_id,
+                    "difficulty_tier": scenario.tier,
+                    "expected_labels": [f.label for f in faults],
+                    "expected_fault_types": sorted({f.fault_type for f in faults}),
+                }
                 bounds = _window()
-                b0, b1, c0, c1 = (bounds.baseline_start, bounds.baseline_end,
-                                  bounds.current_start, bounds.current_end)
+                b0, b1, c0, c1 = (
+                    bounds.baseline_start,
+                    bounds.baseline_end,
+                    bounds.current_start,
+                    bounds.current_end,
+                )
                 if mode == "Replay cache":
                     try:
                         llm = ReplayLLMClient(ReplayCache(cache_path))
                     except (FileNotFoundError, json.JSONDecodeError) as exc:
-                        st.error(f"Replay cache not usable: {exc}. "
-                                 "Record one first via "
-                                 "`scripts/run_scenario.py --record <file>`.")
+                        st.error(
+                            f"Replay cache not usable: {exc}. "
+                            "Record one first via "
+                            "`scripts/run_scenario.py --record <file>`."
+                        )
                         st.stop()
                 else:
                     llm = get_client(provider)
-                result = diagnose(con, c0, c1, b0, b1, llm=llm,
-                                  scenario_id=scenario_id)
+                result = diagnose(con, c0, c1, b0, b1, llm=llm, scenario_id=scenario_id)
                 st.session_state["result"] = result
                 st.session_state["gt"] = gt
             except LookupError as exc:
                 # Replay cache miss (one transcript step not recorded)
-                st.error(f"Replay cache miss: {exc}. Re-run with --record to "
-                         "refresh the cache for this scenario.")
+                st.error(
+                    f"Replay cache miss: {exc}. Re-run with --record to "
+                    "refresh the cache for this scenario."
+                )
             except Exception as exc:  # noqa: BLE001 - surface, don't crash the page
                 st.error(f"Diagnosis failed: {type(exc).__name__}: {exc}")
             finally:
@@ -84,8 +94,10 @@ with st.sidebar:
                     pass
 
 if "result" not in st.session_state:
-    st.info("Pick a scenario and hit **Diagnose**. Replay mode needs a cache file "
-            "produced via `scripts/run_scenario.py --record`.")
+    st.info(
+        "Pick a scenario and hit **Diagnose**. Replay mode needs a cache file "
+        "produced via `scripts/run_scenario.py --record`."
+    )
     st.stop()
 
 result = st.session_state["result"]
@@ -99,10 +111,12 @@ col2.metric("Root cause", result.root_cause or "—")
 col3.metric("Confidence", f"{result.confidence:.0%}" if result.confidence else "—")
 
 if gt["expected_labels"]:
-    ok = "✅ correct" if score["correct"] else (
-        "🟡 partial" if score.get("partial") else "❌ incorrect")
-    st.caption(f"Eval (tier `{gt['difficulty_tier']}`): {ok} — "
-               f"expected {gt['expected_labels']}")
+    ok = (
+        "✅ correct"
+        if score["correct"]
+        else ("🟡 partial" if score.get("partial") else "❌ incorrect")
+    )
+    st.caption(f"Eval (tier `{gt['difficulty_tier']}`): {ok} — expected {gt['expected_labels']}")
 
 if result.status == "inconclusive":
     st.warning(f"**Inconclusive** — {result.missing}")
@@ -126,8 +140,9 @@ if result.disconfirmation:
 
 # --- evidence chain ----------------------------------------------------------
 store = result.store
-st.subheader(f"Evidence chain ({len(result.evidence_call_ids)} cited of "
-             f"{len(store.entries)} logged calls)")
+st.subheader(
+    f"Evidence chain ({len(result.evidence_call_ids)} cited of {len(store.entries)} logged calls)"
+)
 for entry in store.entries:
     cited = "✅ cited" if entry.call_id in result.evidence_call_ids else "logged"
     with st.expander(f"{entry.call_id} · {entry.tool} · {entry.row_count} rows · {cited}"):
@@ -141,8 +156,11 @@ with st.expander("Full transcript (audit trail)"):
 # --- export -------------------------------------------------------------------
 st.download_button(
     "Download diagnosis (JSON)",
-    data=json.dumps({"result": result.to_json(), "score": score,
-                     "evidence": store.to_json()}, indent=2, default=str),
+    data=json.dumps(
+        {"result": result.to_json(), "score": score, "evidence": store.to_json()},
+        indent=2,
+        default=str,
+    ),
     file_name=f"{gt['scenario_id']}_diagnosis.json",
 )
 st.download_button(

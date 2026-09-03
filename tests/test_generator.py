@@ -19,9 +19,18 @@ def test_schema_and_volume():
     con = _gen().generate()
     cols = [r[0] for r in con.execute("DESCRIBE transactions").fetchall()]
     assert set(cols) >= {
-        "txn_id", "ts", "amount", "currency", "payment_method", "card_network",
-        "issuer_bank", "status", "failure_code", "gateway_latency_ms",
-        "merchant_id", "geo_region",
+        "txn_id",
+        "ts",
+        "amount",
+        "currency",
+        "payment_method",
+        "card_network",
+        "issuer_bank",
+        "status",
+        "failure_code",
+        "gateway_latency_ms",
+        "merchant_id",
+        "geo_region",
     }
     n = con.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
     assert n >= 2000 * 6  # baseline_days(5) + current day
@@ -32,7 +41,8 @@ def test_baseline_failure_rate_is_low():
     w = _gen().window
     fr = con.execute(
         "SELECT AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END) FROM transactions "
-        "WHERE ts < ?", [w.current_window_start],
+        "WHERE ts < ?",
+        [w.current_window_start],
     ).fetchone()[0]
     assert 0.005 < fr < 0.08, f"baseline failure rate {fr} outside sane band"
 

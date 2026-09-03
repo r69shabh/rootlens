@@ -74,10 +74,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenario", default="bank_outage_icici", choices=sorted(SCENARIOS))
     ap.add_argument("--provider", default=None, choices=["openai", "anthropic"])
-    ap.add_argument("--record", default=None, metavar="CACHE.json",
-                    help="run live and cache the transcript for replay")
-    ap.add_argument("--replay", default=None, metavar="CACHE.json",
-                    help="replay a recorded transcript (no API call)")
+    ap.add_argument(
+        "--record",
+        default=None,
+        metavar="CACHE.json",
+        help="run live and cache the transcript for replay",
+    )
+    ap.add_argument(
+        "--replay",
+        default=None,
+        metavar="CACHE.json",
+        help="replay a recorded transcript (no API call)",
+    )
     ap.add_argument("--dump", default=None, help="write full diagnosis JSON here")
     ap.add_argument("--list", action="store_true")
     ns = ap.parse_args()
@@ -91,9 +99,12 @@ def main() -> int:
 
     scenario = get_scenario(ns.scenario)
     con, faults = scenario.build_dataset()
-    gt = {"scenario_id": scenario.scenario_id, "difficulty_tier": scenario.tier,
-          "expected_labels": [f.label for f in faults],
-          "expected_fault_types": sorted({f.fault_type for f in faults})}
+    gt = {
+        "scenario_id": scenario.scenario_id,
+        "difficulty_tier": scenario.tier,
+        "expected_labels": [f.label for f in faults],
+        "expected_fault_types": sorted({f.fault_type for f in faults}),
+    }
     bounds = window_bounds()
     baseline_start, baseline_end = bounds.baseline_start, bounds.baseline_end
     current_start, current_end = bounds.current_start, bounds.current_end
@@ -105,8 +116,10 @@ def main() -> int:
         print("  no anomalous segments (healthy/benign scenario) — FP control OK")
     for s in segments[:5]:
         d = s.to_dict()
-        print(f"  {d['dimension']}={d['value']}: {d['baseline_success_rate']} -> "
-              f"{d['current_success_rate']} (impact {d['impact']})")
+        print(
+            f"  {d['dimension']}={d['value']}: {d['baseline_success_rate']} -> "
+            f"{d['current_success_rate']} (impact {d['impact']})"
+        )
 
     if ns.provider is None and ns.replay is None:
         ok = deterministic_check(con, faults, segments)
@@ -115,16 +128,22 @@ def main() -> int:
         con.close()
         return 0 if ok else 1
 
-    print(f"\n-- Stages 2-4: LLM diagnosis loop "
-          f"({ns.provider or 'replay'}) --")
+    print(f"\n-- Stages 2-4: LLM diagnosis loop ({ns.provider or 'replay'}) --")
     if ns.replay:
         llm = ReplayLLMClient(ReplayCache(ns.replay))
     else:
         live = get_client(ns.provider)
         llm = RecordingLLMClient(live, ReplayCache(ns.record)) if ns.record else live
 
-    result = diagnose(con, current_start, current_end, baseline_start, baseline_end,
-                      llm=llm, scenario_id=scenario.scenario_id)
+    result = diagnose(
+        con,
+        current_start,
+        current_end,
+        baseline_start,
+        baseline_end,
+        llm=llm,
+        scenario_id=scenario.scenario_id,
+    )
     score = score_result(result, gt)
     if ns.record:
         llm.cache.save()
@@ -133,9 +152,13 @@ def main() -> int:
     print(to_markdown(result, store=result.store, ground_truth=gt))
     print(f"eval: {json.dumps(score, default=str)}")
     if ns.dump:
-        Path(ns.dump).write_text(json.dumps(
-            {"result": result.to_json(), "score": score,
-              "evidence": result.store.to_json()}, indent=2, default=str))
+        Path(ns.dump).write_text(
+            json.dumps(
+                {"result": result.to_json(), "score": score, "evidence": result.store.to_json()},
+                indent=2,
+                default=str,
+            )
+        )
         print(f"full audit trail written to {ns.dump}")
     con.close()
     return 0 if score["correct"] or result.status == "inconclusive" else 1

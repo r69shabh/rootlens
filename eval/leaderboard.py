@@ -33,8 +33,9 @@ class RunRecord:
     @property
     def est_cost_usd(self) -> float:
         prices = PROVIDER_PRICES.get(self.agent, {"input": 0.0, "output": 0.0})
-        return (self.input_tokens / 1e6 * prices["input"]
-                + self.output_tokens / 1e6 * prices["output"])
+        return (
+            self.input_tokens / 1e6 * prices["input"] + self.output_tokens / 1e6 * prices["output"]
+        )
 
 
 @dataclass
@@ -60,9 +61,11 @@ class AgentStanding:
         tok = f", tokens {self.input_tokens + self.output_tokens:,}"
         if self.any_estimated_tokens:
             tok += " (partly estimated)"
-        return (f"{self.agent:32s} acc {self.accuracy:5.0%} ({self.correct}/{self.runs}) "
-                f"latency {self.latency_minutes / max(self.runs, 1):6.2f} min/run "
-                f"cost ${self.est_cost_usd:.4f}{tok}")
+        return (
+            f"{self.agent:32s} acc {self.accuracy:5.0%} ({self.correct}/{self.runs}) "
+            f"latency {self.latency_minutes / max(self.runs, 1):6.2f} min/run "
+            f"cost ${self.est_cost_usd:.4f}{tok}"
+        )
 
 
 class Leaderboard:
@@ -90,12 +93,14 @@ class Leaderboard:
             tier["total"] += 1
             tier["correct"] += int(r.correct)
         # rank: accuracy first, then cheaper, then faster
-        return sorted(by_agent.values(),
-                      key=lambda s: (-s.accuracy, s.est_cost_usd, s.latency_minutes))
+        return sorted(
+            by_agent.values(), key=lambda s: (-s.accuracy, s.est_cost_usd, s.latency_minutes)
+        )
 
     def to_markdown(self) -> str:
         lines = [
-            "# RootLens diagnosis leaderboard", "",
+            "# RootLens diagnosis leaderboard",
+            "",
             "Same scenario set per agent. Rank: accuracy, then cost, then latency.",
             "",
             "| Agent | Accuracy | Inconclusive | False pos. | Latency (min/run) "
@@ -111,9 +116,13 @@ class Leaderboard:
                 f"| {s.llm_calls} | {cost_per_run:.4f} |"
             )
         tiers = sorted({r.tier for r in self.records})
-        lines += ["", "## Per-tier accuracy", "",
-                  "| Agent | " + " | ".join(tiers) + " |",
-                  "|---|" + "---|" * len(tiers)]
+        lines += [
+            "",
+            "## Per-tier accuracy",
+            "",
+            "| Agent | " + " | ".join(tiers) + " |",
+            "|---|" + "---|" * len(tiers),
+        ]
         for s in self.standings():
             cells = []
             for t in tiers:

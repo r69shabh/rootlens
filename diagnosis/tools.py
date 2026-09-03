@@ -10,8 +10,14 @@ from diagnosis.evidence import EvidenceStore
 
 # Whitelists: the agent can never touch arbitrary columns or SQL.
 FILTERABLE_COLUMNS = {
-    "issuer_bank", "card_network", "payment_method", "amount_bucket",
-    "geo_region", "merchant_id", "status", "failure_code",
+    "issuer_bank",
+    "card_network",
+    "payment_method",
+    "amount_bucket",
+    "geo_region",
+    "merchant_id",
+    "status",
+    "failure_code",
 }
 GROUPABLE_COLUMNS = FILTERABLE_COLUMNS | {"ts_hour"}
 METRICS = {"count", "success_rate", "failure_rate", "avg_amount", "p95_latency"}
@@ -102,16 +108,32 @@ class DiagnosisTools:
             rows = rows[:MAX_RESULT_ROWS]
         result = [dict(zip(cols, r, strict=True)) for r in rows]
         if truncated:
-            result.append({TRUNCATION_KEY: True, "rows_returned": MAX_RESULT_ROWS,
-                           "note": "result truncated; narrow filters or shorten window"})
+            result.append(
+                {
+                    TRUNCATION_KEY: True,
+                    "rows_returned": MAX_RESULT_ROWS,
+                    "note": "result truncated; narrow filters or shorten window",
+                }
+            )
         self.store.log(tool, args, result, (time.perf_counter() - t0) * 1000)
         return result
 
-    def query_transactions(self, filters: dict | None = None, group_by: list[str] | None = None,
-                           metrics: list[str] | None = None, start=None, end=None) -> list[dict]:
+    def query_transactions(
+        self,
+        filters: dict | None = None,
+        group_by: list[str] | None = None,
+        metrics: list[str] | None = None,
+        start=None,
+        end=None,
+    ) -> list[dict]:
         """Aggregate transactions with whitelisted filters/group_bys/metrics."""
-        args = {"filters": filters, "group_by": group_by, "metrics": metrics,
-                "start": str(start) if start else None, "end": str(end) if end else None}
+        args = {
+            "filters": filters,
+            "group_by": group_by,
+            "metrics": metrics,
+            "start": str(start) if start else None,
+            "end": str(end) if end else None,
+        }
         filters = _validate_filters(filters or {})
         group_by = group_by or []
         metrics = metrics or ["count", "success_rate"]
@@ -130,11 +152,17 @@ class DiagnosisTools:
             sql += " ORDER BY " + ", ".join(f"{m} DESC" for m in metrics if m in ("count",))
         return self._run("query_transactions", args, sql, params)
 
-    def timeseries(self, metric: str, granularity: str, start, end,
-                   filters: dict | None = None) -> list[dict]:
+    def timeseries(
+        self, metric: str, granularity: str, start, end, filters: dict | None = None
+    ) -> list[dict]:
         """Metric over time buckets, for onset alignment."""
-        args = {"metric": metric, "granularity": granularity, "start": str(start),
-                "end": str(end), "filters": filters}
+        args = {
+            "metric": metric,
+            "granularity": granularity,
+            "start": str(start),
+            "end": str(end),
+            "filters": filters,
+        }
         if metric not in METRICS:
             raise ToolError(f"metric {metric!r} not allowed; allowed: {sorted(METRICS)}")
         if granularity not in {"hour", "minute", "day"}:
@@ -168,18 +196,31 @@ class DiagnosisTools:
         """
         return self._run("compare_segments", args, sql, [start, end])
 
-    def baseline_compare(self, metric: str, current_start, current_end,
-                         baseline_start, baseline_end, filters: dict | None = None) -> dict:
+    def baseline_compare(
+        self,
+        metric: str,
+        current_start,
+        current_end,
+        baseline_start,
+        baseline_end,
+        filters: dict | None = None,
+    ) -> dict:
         """Z-score of the current-window metric against the baseline window."""
-        args = {"metric": metric, "current": [str(current_start), str(current_end)],
-                "baseline": [str(baseline_start), str(baseline_end)], "filters": filters}
+        args = {
+            "metric": metric,
+            "current": [str(current_start), str(current_end)],
+            "baseline": [str(baseline_start), str(baseline_end)],
+            "filters": filters,
+        }
         if metric not in METRICS:
             raise ToolError(f"metric {metric!r} not allowed; allowed: {sorted(METRICS)}")
         filters = _validate_filters(filters or {})
         expr = _METRIC_SQL[metric]
         out: dict = {"metric": metric}
-        for name, (s, e) in {"baseline": (baseline_start, baseline_end),
-                             "current": (current_start, current_end)}.items():
+        for name, (s, e) in {
+            "baseline": (baseline_start, baseline_end),
+            "current": (current_start, current_end),
+        }.items():
             where, params = _where_clause(filters, s, e)
             # hourly samples -> distribution for the z-score, not a single aggregate
             rows = self.con.execute(
@@ -200,8 +241,12 @@ class DiagnosisTools:
             # trust an enormous z-score that came from dividing by ~0.
             n = len(vals)
             var = sum((v - mean) ** 2 for v in vals) / max(n - 1, 1)
-            out[name] = {"mean": mean, "std": var ** 0.5, "n_hours": n,
-                         "latest": vals[-1] if name == "current" else None}
+            out[name] = {
+                "mean": mean,
+                "std": var**0.5,
+                "n_hours": n,
+                "latest": vals[-1] if name == "current" else None,
+            }
         # std floor: with a near-constant baseline (e.g. synthetic), std can
         # be ~0 and any tiny current-window jitter explodes the z-score. Use
         # a more meaningful floor derived from the metric's range, not 1e-9.
@@ -209,7 +254,8 @@ class DiagnosisTools:
         # the blowup; metric-agnostic so it covers avg_amount too.
         metric_range = max(
             abs(out["baseline"]["mean"]),
-            abs(out["current"]["mean"]), 1.0,
+            abs(out["current"]["mean"]),
+            1.0,
         )
         std = max(out["baseline"]["std"], metric_range * 0.01)
         if out["baseline"]["n_hours"] < 2:

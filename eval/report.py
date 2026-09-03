@@ -8,8 +8,9 @@ from diagnosis.agent import DiagnosisResult
 from diagnosis.evidence import EvidenceStore
 
 
-def to_markdown(result: DiagnosisResult, store: EvidenceStore | None = None,
-                ground_truth: dict | None = None) -> str:
+def to_markdown(
+    result: DiagnosisResult, store: EvidenceStore | None = None, ground_truth: dict | None = None
+) -> str:
     lines = ["# RootLens diagnosis report", ""]
     lines.append(f"**Status:** {result.status}")
     if result.status == "verdict":
@@ -33,11 +34,15 @@ def to_markdown(result: DiagnosisResult, store: EvidenceStore | None = None,
             entry = store.get(cid) if store else None
             if entry:
                 args = json.dumps(entry.args, default=str)
-                lines.append(f"- `{cid}` **{entry.tool}** — args: `{args}` "
-                             f"({entry.row_count} rows)")
+                lines.append(
+                    f"- `{cid}` **{entry.tool}** — args: `{args}` ({entry.row_count} rows)"
+                )
             else:
                 lines.append(f"- `{cid}` (not found in audit trail)")
     if ground_truth:
-        lines += ["", "## Ground truth (eval only)",
-                  f"- expected: {ground_truth.get('expected_labels')}"]
+        lines += [
+            "",
+            "## Ground truth (eval only)",
+            f"- expected: {ground_truth.get('expected_labels')}",
+        ]
     return "\n".join(lines) + "\n"

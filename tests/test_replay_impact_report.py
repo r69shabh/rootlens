@@ -19,8 +19,10 @@ from eval.report import to_markdown
 
 _WC = WindowConfig(start=DEFAULT_WINDOW_START)
 DIAG = dict(
-    current_start=_WC.current_window_start, current_end=_WC.current_window_end,
-    baseline_start=_WC.start, baseline_end=_WC.current_window_start,
+    current_start=_WC.current_window_start,
+    current_end=_WC.current_window_end,
+    baseline_start=_WC.start,
+    baseline_end=_WC.current_window_start,
 )
 
 
@@ -77,6 +79,7 @@ def test_chat_with_retry_does_not_swallow_value_error():
     # ValueError is the agent-loop contract violation signal; must propagate
     def bad():
         raise ValueError("malformed tool call")
+
     with pytest.raises(ValueError, match="malformed"):
         _chat_with_retry(bad)
 
@@ -85,9 +88,16 @@ def test_replay_caches_full_agent_transcript(tmp_path):
     cache_path = tmp_path / "agent_cache.json"
     responses = [
         json.dumps({"tool": "query_transactions", "args": {"metrics": ["count"]}}),
-        json.dumps({"verdict": {"root_cause": "x:y", "confidence": 0.9,
-                                "evidence": ["call_001"],
-                                "disconfirmation": ["checked: fine"]}}),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "x:y",
+                    "confidence": 0.9,
+                    "evidence": ["call_001"],
+                    "disconfirmation": ["checked: fine"],
+                }
+            }
+        ),
     ]
     con = get_scenario("healthy").build_dataset()[0]
     rec = RecordingLLMClient(ScriptedLLMClient(responses), ReplayCache(cache_path))
@@ -105,7 +115,8 @@ def test_impact_estimate_honest_bounds(tmp_path=None):
     assert est["gmv_at_risk_inr"] > 0
     assert est["manual_baseline_minutes"] == MANUAL_BASELINE_MINUTES
     assert est["hours_saved_vs_manual"] == pytest.approx(
-        round((MANUAL_BASELINE_MINUTES - 0.5) / 60, 2), abs=1e-9)
+        round((MANUAL_BASELINE_MINUTES - 0.5) / 60, 2), abs=1e-9
+    )
     assert "upper bound" in est["note"]
 
 
@@ -113,13 +124,21 @@ def test_markdown_report_renders_verdict_and_evidence():
     con = get_scenario("healthy").build_dataset()[0]
     responses = [
         json.dumps({"tool": "query_transactions", "args": {"metrics": ["count"]}}),
-        json.dumps({"verdict": {"root_cause": "bank_outage:ICICI", "confidence": 0.8,
-                                "evidence": ["call_001"],
-                                "disconfirmation": ["compared issuers: isolated to ICICI"]}}),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "bank_outage:ICICI",
+                    "confidence": 0.8,
+                    "evidence": ["call_001"],
+                    "disconfirmation": ["compared issuers: isolated to ICICI"],
+                }
+            }
+        ),
     ]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="md", **DIAG)
-    md = to_markdown(result, store=result.store,
-                     ground_truth={"expected_labels": ["bank_outage:ICICI"]})
+    md = to_markdown(
+        result, store=result.store, ground_truth={"expected_labels": ["bank_outage:ICICI"]}
+    )
     assert "bank_outage:ICICI" in md
     assert "call_001" in md
     assert "query_transactions" in md
@@ -130,17 +149,39 @@ def test_agent_attaches_impact_to_result():
     con = get_scenario("healthy").build_dataset()[0]
     responses = [
         json.dumps({"tool": "query_transactions", "args": {"metrics": ["count"]}}),
-        json.dumps({"verdict": {"root_cause": "x:y", "confidence": 0.9,
-                                "evidence": [], "disconfirmation": ["d"]}}),
-        json.dumps({"verdict": {"root_cause": "x:y", "confidence": 0.9,
-                                "evidence": ["call_001"], "disconfirmation": ["d"],
-                                "impact": {"transactions_affected": 5}}}),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "x:y",
+                    "confidence": 0.9,
+                    "evidence": [],
+                    "disconfirmation": ["d"],
+                }
+            }
+        ),
+        json.dumps(
+            {
+                "verdict": {
+                    "root_cause": "x:y",
+                    "confidence": 0.9,
+                    "evidence": ["call_001"],
+                    "disconfirmation": ["d"],
+                    "impact": {"transactions_affected": 5},
+                }
+            }
+        ),
     ]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="imp", **DIAG)
     assert "estimated" in result.impact
     assert result.impact["claimed_by_model"]["transactions_affected"] == 5
     assert result.time_to_diagnosis_minutes is not None
-    score = score_result(result, {"scenario_id": "s", "difficulty_tier": "clean",
-                                  "expected_labels": ["x:y"],
-                                  "expected_fault_types": ["x"]})
+    score = score_result(
+        result,
+        {
+            "scenario_id": "s",
+            "difficulty_tier": "clean",
+            "expected_labels": ["x:y"],
+            "expected_fault_types": ["x"],
+        },
+    )
     assert score["correct"] is True

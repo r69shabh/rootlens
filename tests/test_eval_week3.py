@@ -15,31 +15,49 @@ WC = WindowConfig(start=DEFAULT_WINDOW_START)
 BOUNDS = (WC.current_window_start, WC.current_window_end, WC.start, WC.current_window_start)
 
 CLEAN_FAULT_SCENARIOS = [
-    "bank_outage_icici", "bank_outage_kotak", "network_degradation_visa",
-    "network_degradation_rupay", "high_ticket_rule_10k", "retry_storm_gateway",
-    "checkout_funnel_break", "settlement_delay_mch007",
+    "bank_outage_icici",
+    "bank_outage_kotak",
+    "network_degradation_visa",
+    "network_degradation_rupay",
+    "high_ticket_rule_10k",
+    "retry_storm_gateway",
+    "checkout_funnel_break",
+    "settlement_delay_mch007",
 ]
 
 
 def _gt(sid):
     sc = get_scenario(sid)
-    return {"scenario_id": sid, "difficulty_tier": sc.tier,
-            "expected_labels": [], "expected_fault_types": []}  # filled below
+    return {
+        "scenario_id": sid,
+        "difficulty_tier": sc.tier,
+        "expected_labels": [],
+        "expected_fault_types": [],
+    }  # filled below
 
 
 def _gt_for(sid):
     sc = get_scenario(sid)
     con, faults = sc.build_dataset()
     con.close()
-    return {"scenario_id": sid, "difficulty_tier": sc.tier,
-            "expected_labels": [f.label for f in faults],
-            "expected_fault_types": sorted({f.fault_type for f in faults})}
+    return {
+        "scenario_id": sid,
+        "difficulty_tier": sc.tier,
+        "expected_labels": [f.label for f in faults],
+        "expected_fault_types": sorted({f.fault_type for f in faults}),
+    }
 
 
-@pytest.mark.parametrize("sid", CLEAN_FAULT_SCENARIOS + ["compound_outage_plus_rule",
-                                                         "noisy_bank_outage_hdfc",
-                                                         "noisy_network_amex",
-                                                         "red_herring_campaign_vs_outage"])
+@pytest.mark.parametrize(
+    "sid",
+    CLEAN_FAULT_SCENARIOS
+    + [
+        "compound_outage_plus_rule",
+        "noisy_bank_outage_hdfc",
+        "noisy_network_amex",
+        "red_herring_campaign_vs_outage",
+    ],
+)
 def test_rule_baseline_diagnoses_all_faults(sid):
     con, _ = get_scenario(sid).build_dataset()
     result = rule_based_diagnose(con, *BOUNDS, scenario_id=sid)
@@ -76,12 +94,22 @@ def test_leaderboard_ranking_and_costs():
         ("rule-baseline", True, 0.0, 0),
         ("rule-baseline", True, 0.0, 0),
     ]:
-        board.add(RunRecord(
-            scenario_id="s", tier="clean", agent=agent, status="verdict",
-            correct=correct, partial=False, inconclusive=False,
-            false_positive=False, latency_minutes=lat, llm_calls=1,
-            input_tokens=toks, output_tokens=0,
-        ))
+        board.add(
+            RunRecord(
+                scenario_id="s",
+                tier="clean",
+                agent=agent,
+                status="verdict",
+                correct=correct,
+                partial=False,
+                inconclusive=False,
+                false_positive=False,
+                latency_minutes=lat,
+                llm_calls=1,
+                input_tokens=toks,
+                output_tokens=0,
+            )
+        )
     standings = board.standings()
     # equal accuracy (100%) -> cheaper agent ranks first
     assert standings[0].agent == "rule-baseline"
@@ -96,11 +124,20 @@ def test_leaderboard_ranking_and_costs():
 def test_leaderboard_tiers_never_blend():
     board = Leaderboard()
     for tier, correct in [("clean", True), ("clean", False), ("noisy", True)]:
-        board.add(RunRecord(
-            scenario_id="s", tier=tier, agent="llm-a", status="verdict",
-            correct=correct, partial=False, inconclusive=False,
-            false_positive=False, latency_minutes=1.0, llm_calls=1,
-        ))
+        board.add(
+            RunRecord(
+                scenario_id="s",
+                tier=tier,
+                agent="llm-a",
+                status="verdict",
+                correct=correct,
+                partial=False,
+                inconclusive=False,
+                false_positive=False,
+                latency_minutes=1.0,
+                llm_calls=1,
+            )
+        )
     st = board.standings()[0]
     assert st.per_tier["clean"] == {"total": 2, "correct": 1}
     assert st.per_tier["noisy"] == {"total": 1, "correct": 1}
@@ -109,6 +146,7 @@ def test_leaderboard_tiers_never_blend():
 
 def test_run_eval_rule_end_to_end(tmp_path, monkeypatch):
     import scripts.run_eval as re_eval
+
     ids = ["bank_outage_icici", "healthy", "compound_outage_plus_rule"]
     out = tmp_path / "res"
     monkeypatch.chdir(tmp_path)

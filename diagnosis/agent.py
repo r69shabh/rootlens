@@ -56,7 +56,7 @@ Never claim a number you did not observe. One tool call per turn.""".replace(
 
 @dataclass
 class DiagnosisResult:
-    status: str                      # "verdict" | "inconclusive" | "error"
+    status: str  # "verdict" | "inconclusive" | "error"
     root_cause: str | None = None
     confidence: float | None = None
     evidence_call_ids: list[str] = field(default_factory=list)
@@ -103,17 +103,27 @@ def build_initial_context(segments: list[AnomalousSegment], onset_hints: dict) -
 
 
 _DISCONFIRMATION_SUGGESTIONS = {
-    "issuer_bank": ("compare_segments('issuer_bank','card_network', ...) to test whether the "
-                    "failure is concentrated in one bank (outage) or spans a whole network "
-                    "(network degradation); also check the failure_code distribution"),
-    "card_network": ("compare_segments('card_network','issuer_bank', ...) — a true network "
-                     "issue spans all issuers; a single-issuer concentration means a bank outage"),
-    "amount_bucket": ("query_transactions(group_by=['failure_code']) — a risk rule shows one "
-                      "dominant decline code tied to high amounts"),
-    "merchant_id": ("query_transactions(filters={merchant}, group_by=['status']) — settlement "
-                    "delays show a pending spike with failure_code NULL, not failed volume"),
-    "payment_method": ("compare_segments('payment_method','failure_code', ...) — a checkout "
-                       "funnel break hits all methods with one code; a gateway issue does not"),
+    "issuer_bank": (
+        "compare_segments('issuer_bank','card_network', ...) to test whether the "
+        "failure is concentrated in one bank (outage) or spans a whole network "
+        "(network degradation); also check the failure_code distribution"
+    ),
+    "card_network": (
+        "compare_segments('card_network','issuer_bank', ...) — a true network "
+        "issue spans all issuers; a single-issuer concentration means a bank outage"
+    ),
+    "amount_bucket": (
+        "query_transactions(group_by=['failure_code']) — a risk rule shows one "
+        "dominant decline code tied to high amounts"
+    ),
+    "merchant_id": (
+        "query_transactions(filters={merchant}, group_by=['status']) — settlement "
+        "delays show a pending spike with failure_code NULL, not failed volume"
+    ),
+    "payment_method": (
+        "compare_segments('payment_method','failure_code', ...) — a checkout "
+        "funnel break hits all methods with one code; a gateway issue does not"
+    ),
 }
 
 
@@ -123,8 +133,10 @@ def _disconfirmation_hint(segments: list[AnomalousSegment]) -> str | None:
     base = _DISCONFIRMATION_SUGGESTIONS.get(segments[0].dimension)
     if not base:
         return None
-    return ("Disconfirmation checkpoint: before concluding, actively try to DISPROVE the "
-            f"leading hypothesis ({segments[0].dimension}={segments[0].value}). {base}")
+    return (
+        "Disconfirmation checkpoint: before concluding, actively try to DISPROVE the "
+        f"leading hypothesis ({segments[0].dimension}={segments[0].value}). {base}"
+    )
 
 
 def _verdict_problems(parsed: dict, store: EvidenceStore) -> list[str]:
@@ -137,8 +149,10 @@ def _verdict_problems(parsed: dict, store: EvidenceStore) -> list[str]:
         if store.get(cid) is None:
             problems.append(f"evidence {cid!r} does not exist in the audit trail")
     if not v.get("disconfirmation"):
-        problems.append("no disconfirmation checks; state what could have disproved the "
-                        "hypothesis and what you found")
+        problems.append(
+            "no disconfirmation checks; state what could have disproved the "
+            "hypothesis and what you found"
+        )
     try:
         conf = float(v.get("confidence", 0.0))
     except (TypeError, ValueError):
@@ -166,21 +180,70 @@ def _extract_verdict(parsed: dict, result: DiagnosisResult, rounds: int) -> Diag
     return result
 
 
-def diagnose(con, current_start, current_end, baseline_start, baseline_end,
-             llm: LLMClient, scenario_id: str = "default",
-             max_rounds: int = MAX_TOOL_ROUNDS) -> DiagnosisResult:
-    """Full pipeline: deterministic scan -> LLM hypothesis/evidence loop -> verdict."""
-    t0 = time.perf_counter()
+def _finalize(
+    result: DiagnosisResult, con, current_start, current_end, t0: float
+) -> DiagnosisResult:
+    """Attach timing, impact, and transcript to a verdict/inconclusive result.
+
+    Shared by the LLM and rule-based agents so the contract (what fields a
+    caller can rely on) is identical regardless of the reasoning path.
+    """
+    elapsed_minutes = (time.perf_counter() - t0) / 60
+    result.time_to_diagnosis_minutes = round(elapsed_minutes, 2)
+    result.impact = {
+        "estimated": estimate_impact(con, current_start, current_end, elapsed_minutes),
+        **result.impact,
+    }
+    return result
+
+
+def prepare_run(
+    con, current_start, current_end, baseline_start, baseline_end, scenario_id: str = "default"
+) -> tuple[EvidenceStore, DiagnosisTools, list, dict]:
+    """Wire up the audit trail, tools, anomaly segments, and onset hints.
+
+    Both diagnose() and rule_based_diagnose() start from this; it ensures
+    the same evidence store, tools binding, scan result, and onset estimation
+    are used regardless of reasoning path, so the leaderboard comparison is
+    fair (only the labeling differs).
+    """
     store = EvidenceStore(scenario_id=scenario_id)
     tools = DiagnosisTools(con, store)
     segments = scan(con, current_start, current_end, baseline_start, baseline_end)
-
     onset_hints = {}
     for s in segments[:3]:
-        onset = estimate_onset(con, current_start, current_end, s.baseline_rate,
-                               {s.dimension: s.value} if s.dimension != "amount_bucket" else {})
+        onset = estimate_onset(
+            con,
+            current_start,
+            current_end,
+            s.baseline_rate,
+            {s.dimension: s.value} if s.dimension != "amount_bucket" else {},
+        )
         if onset:
             onset_hints[f"{s.dimension}={s.value}"] = onset
+    return store, tools, segments, onset_hints
+
+
+def diagnose(
+    con,
+    current_start,
+    current_end,
+    baseline_start,
+    baseline_end,
+    llm: LLMClient,
+    scenario_id: str = "default",
+    max_rounds: int = MAX_TOOL_ROUNDS,
+) -> DiagnosisResult:
+    """Full pipeline: deterministic scan -> LLM hypothesis/evidence loop -> verdict."""
+    t0 = time.perf_counter()
+    store, tools, segments, onset_hints = prepare_run(
+        con,
+        current_start,
+        current_end,
+        baseline_start,
+        baseline_end,
+        scenario_id,
+    )
 
     result = DiagnosisResult(status="error")
     context = build_initial_context(segments, onset_hints)
@@ -197,8 +260,9 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
             parsed = parse_json_response(reply)
         except ValueError as exc:
             messages.append({"role": "assistant", "content": reply})
-            messages.append({"role": "user",
-                             "content": f"Invalid JSON: {exc}. Reply with one JSON object."})
+            messages.append(
+                {"role": "user", "content": f"Invalid JSON: {exc}. Reply with one JSON object."}
+            )
             continue
 
         if "verdict" in parsed:
@@ -206,8 +270,14 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
             if problems and round_no < max_rounds:
                 transcript.append({"role": "verdict_rejected", "problems": problems})
                 messages.append({"role": "assistant", "content": reply})
-                messages.append({"role": "user", "content": "VERDICT_REJECTED: "
-                                 + "; ".join(problems) + ". Fix these and respond again."})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "VERDICT_REJECTED: "
+                        + "; ".join(problems)
+                        + ". Fix these and respond again.",
+                    }
+                )
                 continue
             if problems:
                 rejected_problems = problems
@@ -217,16 +287,20 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
 
         if "inconclusive" in parsed:
             result = DiagnosisResult(
-                status="inconclusive", missing=str(parsed["inconclusive"].get("missing", "")),
+                status="inconclusive",
+                missing=str(parsed["inconclusive"].get("missing", "")),
                 rounds_used=round_no,
             )
             break
 
         if "tool" not in parsed:
             messages.append({"role": "assistant", "content": reply})
-            messages.append({"role": "user",
-                             "content": 'Reply with a tool call, {"verdict": ...} or '
-                                        '{"inconclusive": ...}.'})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": 'Reply with a tool call, {"verdict": ...} or {"inconclusive": ...}.',
+                }
+            )
             continue
 
         tool_name, args = parsed["tool"], parsed.get("args", {})
@@ -240,11 +314,9 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
             observation = f"TOOL_ERROR: {type(exc).__name__}: {exc}"
             store.log(tool_name, args, observation, 0.0)
 
-        transcript.append({"role": "tool", "tool": tool_name,
-                           "args": args, "result": observation})
+        transcript.append({"role": "tool", "tool": tool_name, "args": args, "result": observation})
         messages.append({"role": "assistant", "content": reply})
-        messages.append({"role": "user",
-                         "content": f"Tool result for {tool_name}:\n{observation}"})
+        messages.append({"role": "user", "content": f"Tool result for {tool_name}:\n{observation}"})
 
         if not hint_shown and hint and round_no >= max(1, max_rounds // 2):
             hint_shown = True
@@ -253,8 +325,10 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
     else:
         result = DiagnosisResult(
             status="inconclusive",
-            missing=(f"hypothesis budget of {max_rounds} tool rounds exhausted "
-                     f"without a confident verdict"),
+            missing=(
+                f"hypothesis budget of {max_rounds} tool rounds exhausted "
+                f"without a confident verdict"
+            ),
             rounds_used=max_rounds,
         )
 
@@ -265,10 +339,7 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
             rounds_used=max_rounds,
         )
 
-    elapsed_minutes = (time.perf_counter() - t0) / 60
-    result.time_to_diagnosis_minutes = round(elapsed_minutes, 2)
-    result.impact = {"estimated": estimate_impact(
-        con, current_start, current_end, elapsed_minutes), **result.impact}
+    _finalize(result, con, current_start, current_end, t0)
     result.transcript = transcript
     result.store = store
     return result

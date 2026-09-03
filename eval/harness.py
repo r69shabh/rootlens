@@ -27,16 +27,24 @@ def score_result(result: DiagnosisResult, ground_truth: dict) -> dict:
         # control scenario (healthy / benign spike): correct means NOT raising a verdict
         correct = result.status != "verdict"
         return {
-            "scenario_id": ground_truth["scenario_id"], "tier": ground_truth["difficulty_tier"],
-            "correct": correct, "partial": False, "inconclusive": result.status == "inconclusive",
+            "scenario_id": ground_truth["scenario_id"],
+            "tier": ground_truth["difficulty_tier"],
+            "correct": correct,
+            "partial": False,
+            "inconclusive": result.status == "inconclusive",
             "predicted": result.root_cause if result.status == "verdict" else None,
-            "expected": [], "false_positive": result.status == "verdict",
+            "expected": [],
+            "false_positive": result.status == "verdict",
         }
     if result.status != "verdict":
         return {
-            "scenario_id": ground_truth["scenario_id"], "tier": ground_truth["difficulty_tier"],
-            "correct": False, "partial": False, "inconclusive": result.status == "inconclusive",
-            "predicted": None, "expected": expected,
+            "scenario_id": ground_truth["scenario_id"],
+            "tier": ground_truth["difficulty_tier"],
+            "correct": False,
+            "partial": False,
+            "inconclusive": result.status == "inconclusive",
+            "predicted": None,
+            "expected": expected,
         }
     predicted = _normalize(result.root_cause or "")
     pred_tokens = _family_tokens(predicted)
@@ -50,10 +58,15 @@ def score_result(result: DiagnosisResult, ground_truth: dict) -> dict:
         fam = families[0]
         correct = fam in pred_tokens
     return {
-        "scenario_id": ground_truth["scenario_id"], "tier": ground_truth["difficulty_tier"],
-        "correct": correct, "partial": (not correct) and any(f in pred_tokens for f in families),
-        "inconclusive": False, "predicted": result.root_cause, "expected": expected,
-        "confidence": result.confidence, "rounds_used": result.rounds_used,
+        "scenario_id": ground_truth["scenario_id"],
+        "tier": ground_truth["difficulty_tier"],
+        "correct": correct,
+        "partial": (not correct) and any(f in pred_tokens for f in families),
+        "inconclusive": False,
+        "predicted": result.root_cause,
+        "expected": expected,
+        "confidence": result.confidence,
+        "rounds_used": result.rounds_used,
     }
 
 
@@ -81,11 +94,15 @@ class TierReport:
     def summary(self) -> str:
         if self.total:
             lo, hi = self.wilson_95ci()
-            return (f"[{self.tier}] accuracy {self.correct}/{self.total} = {self.accuracy:.0%} "
-                    f"(95% CI {lo:.0%}-{hi:.0%}), "
-                    f"inconclusive {self.inconclusive}, false_positives {self.false_positives}")
-        return (f"[{self.tier}] no runs, "
-                f"inconclusive {self.inconclusive}, false_positives {self.false_positives}")
+            return (
+                f"[{self.tier}] accuracy {self.correct}/{self.total} = {self.accuracy:.0%} "
+                f"(95% CI {lo:.0%}-{hi:.0%}), "
+                f"inconclusive {self.inconclusive}, false_positives {self.false_positives}"
+            )
+        return (
+            f"[{self.tier}] no runs, "
+            f"inconclusive {self.inconclusive}, false_positives {self.false_positives}"
+        )
 
 
 def _wilson_95ci(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:

@@ -11,11 +11,11 @@ SUCCESS_RATE = "AVG(CASE WHEN status = 'success' THEN 1.0 ELSE 0.0 END)"
 # Shared scan thresholds. The scan and the onset estimator must agree:
 # a slice the scan ignores cannot trigger an onset point. Centralizing
 # prevents the two from drifting apart.
-SCAN_MIN_VOLUME = 15        # ignore slices with < N txns in the current window
-SCAN_MIN_DROP = 0.08        # ignore slices with smaller success-rate drops
-SCAN_MIN_Z = 4.0            # two-proportion z-test threshold (~40 slices tested)
-ONSET_MIN_DROP = 0.10       # a window hour is "degraded" if it falls this much
-ONSET_MIN_VOLUME = 20       # ...and carries at least this many txns
+SCAN_MIN_VOLUME = 15  # ignore slices with < N txns in the current window
+SCAN_MIN_DROP = 0.08  # ignore slices with smaller success-rate drops
+SCAN_MIN_Z = 4.0  # two-proportion z-test threshold (~40 slices tested)
+ONSET_MIN_DROP = 0.10  # a window hour is "degraded" if it falls this much
+ONSET_MIN_VOLUME = 20  # ...and carries at least this many txns
 
 DIMENSIONS = {
     "issuer_bank": "issuer_bank",
@@ -39,8 +39,8 @@ class AnomalousSegment:
     current_rate: float
     current_volume: int
     volume_share: float
-    drop: float                 # baseline_rate - current_rate (positive = degraded)
-    impact: float               # |drop| * volume_share
+    drop: float  # baseline_rate - current_rate (positive = degraded)
+    impact: float  # |drop| * volume_share
 
     def to_dict(self) -> dict:
         return {
@@ -55,8 +55,7 @@ class AnomalousSegment:
         }
 
 
-def _significant(base_rate: float, base_n: int, cur_rate: float, cur_n: int,
-                 min_z: float) -> bool:
+def _significant(base_rate: float, base_n: int, cur_rate: float, cur_n: int, min_z: float) -> bool:
     """Two-proportion z-test on success rates (current vs baseline)."""
     pooled = (base_rate * base_n + cur_rate * cur_n) / (base_n + cur_n)
     se = (pooled * (1 - pooled) * (1 / cur_n + 1 / base_n)) ** 0.5
@@ -71,9 +70,16 @@ def _segment_expr(dim: str) -> str:
     return DIMENSIONS[dim]
 
 
-def scan(con: DuckDBPyConnection, current_start, current_end, baseline_start, baseline_end,
-         min_volume: int = SCAN_MIN_VOLUME, min_drop: float = SCAN_MIN_DROP,
-         min_z: float = SCAN_MIN_Z) -> list[AnomalousSegment]:
+def scan(
+    con: DuckDBPyConnection,
+    current_start,
+    current_end,
+    baseline_start,
+    baseline_end,
+    min_volume: int = SCAN_MIN_VOLUME,
+    min_drop: float = SCAN_MIN_DROP,
+    min_z: float = SCAN_MIN_Z,
+) -> list[AnomalousSegment]:
     """Compare every dimension slice current-vs-baseline; rank by impact.
 
     Only slices with meaningful volume, a material drop, AND statistical
@@ -117,10 +123,14 @@ def scan(con: DuckDBPyConnection, current_start, current_end, baseline_start, ba
                 continue
             segments.append(
                 AnomalousSegment(
-                    dimension=dim, value=str(seg),
-                    baseline_rate=base_sr, current_rate=cur_sr,
-                    current_volume=n, volume_share=n / total,
-                    drop=drop, impact=drop * n / total,
+                    dimension=dim,
+                    value=str(seg),
+                    baseline_rate=base_sr,
+                    current_rate=cur_sr,
+                    current_volume=n,
+                    volume_share=n / total,
+                    drop=drop,
+                    impact=drop * n / total,
                 )
             )
     segments = _prune_explained_parents(segments)
@@ -160,7 +170,7 @@ def hourly_success_rate(con, start, end, filters: dict | None = None) -> list[di
         f"""
         SELECT date_trunc('hour', ts) AS hour,
                COUNT(*) AS n, {SUCCESS_RATE} AS sr
-        FROM transactions WHERE {' AND '.join(where)}
+        FROM transactions WHERE {" AND ".join(where)}
         GROUP BY 1 ORDER BY 1
         """,
         params,
@@ -168,12 +178,12 @@ def hourly_success_rate(con, start, end, filters: dict | None = None) -> list[di
     return [{"hour": str(h), "volume": n, "success_rate": round(sr, 4)} for h, n, sr in rows]
 
 
-def estimate_onset(con, current_start, current_end, baseline_rate: float,
-                   filters: dict | None = None) -> str | None:
+def estimate_onset(
+    con, current_start, current_end, baseline_rate: float, filters: dict | None = None
+) -> str | None:
     """First hour in the current window whose success rate falls well below baseline."""
     points = hourly_success_rate(con, current_start, current_end, filters)
     for p in points:
-        if (p["success_rate"] < baseline_rate - ONSET_MIN_DROP
-                and p["volume"] >= ONSET_MIN_VOLUME):
+        if p["success_rate"] < baseline_rate - ONSET_MIN_DROP and p["volume"] >= ONSET_MIN_VOLUME:
             return p["hour"]
     return None

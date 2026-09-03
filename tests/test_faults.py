@@ -24,15 +24,18 @@ def test_bank_outage_hits_only_target_bank():
     assert rates["ICICI"] > 0.75
     for bank in ["HDFC", "SBI", "AXIS", "KOTAK"]:
         assert rates[bank] < 0.15, f"collateral damage on {bank}: {rates[bank]}"
-    codes = dict(con.execute(
-        "SELECT failure_code, COUNT(*) FROM transactions WHERE issuer_bank='ICICI' "
-        "AND ts >= ? AND ts < ? AND status='failed' GROUP BY 1",
-        [wc.current_window_start, wc.current_window_end],
-    ).fetchall())
+    codes = dict(
+        con.execute(
+            "SELECT failure_code, COUNT(*) FROM transactions WHERE issuer_bank='ICICI' "
+            "AND ts >= ? AND ts < ? AND status='failed' GROUP BY 1",
+            [wc.current_window_start, wc.current_window_end],
+        ).fetchall()
+    )
     # outage code dominates; pre-existing baseline codes may remain (realistic)
     assert codes.get("issuer_unavailable", 0) == max(codes.values())
     assert codes.get("issuer_unavailable", 0) > sum(
-        v for k, v in codes.items() if k != "issuer_unavailable")
+        v for k, v in codes.items() if k != "issuer_unavailable"
+    )
 
 
 def test_network_degradation_spans_all_issuers():
@@ -49,6 +52,7 @@ def test_network_degradation_spans_all_issuers():
 
 def test_high_ticket_rule_respects_threshold_and_midwindow_onset():
     from datetime import timedelta
+
     con = _make_con("high_ticket_rule_10k")
     wc = WindowConfig(start=DEFAULT_WINDOW_START)
     first_hour_end = wc.current_window_start + timedelta(hours=1)
@@ -93,6 +97,15 @@ def test_injector_validates_inputs():
 
 
 def test_ground_truth_records_fault_events_table():
-    con, faults = get_scenario("bank_outage_icici").build_dataset()
-    rows = con.execute("SELECT fault_type, difficulty_tier FROM fault_events").fetchall()
+    # data connection the agent sees has NO fault_events table (no leak path)
+    data_con, _ = get_scenario("bank_outage_icici").build_dataset()
+    has_table = data_con.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_name='fault_events'"
+    ).fetchone()
+    assert has_table is None, "fault_events must not be in the data connection"
+    data_con.close()
+    # the eval-only connection holds the ground truth
+    eval_con = get_scenario("bank_outage_icici").eval_con()
+    rows = eval_con.execute("SELECT fault_type, difficulty_tier FROM fault_events").fetchall()
     assert rows == [("bank_outage", "clean")]
+    eval_con.close()

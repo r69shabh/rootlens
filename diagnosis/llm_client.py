@@ -75,11 +75,13 @@ class ScriptedLLMClient(LLMClient):
             raise RuntimeError("ScriptedLLMClient exhausted; add more scripted responses")
         response = self.responses.pop(0)
         prompt_chars = len(system) + sum(len(str(m.get("content", ""))) for m in messages)
-        self.usage.append({
-            "input_tokens": max(1, prompt_chars // 4),
-            "output_tokens": max(1, len(response) // 4),
-            "estimated": True,
-        })
+        self.usage.append(
+            {
+                "input_tokens": max(1, prompt_chars // 4),
+                "output_tokens": max(1, len(response) // 4),
+                "estimated": True,
+            }
+        )
         return response
 
 
@@ -87,6 +89,7 @@ class OpenAIClient(LLMClient):
     def __init__(self, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:
         super().__init__()
         from openai import OpenAI  # lazy import: llm extras are optional
+
         self.model_name = model
         self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
 
@@ -100,9 +103,13 @@ class OpenAIClient(LLMClient):
             )
         )
         if resp.usage:
-            self.usage.append({"input_tokens": resp.usage.prompt_tokens,
-                               "output_tokens": resp.usage.completion_tokens,
-                               "estimated": False})
+            self.usage.append(
+                {
+                    "input_tokens": resp.usage.prompt_tokens,
+                    "output_tokens": resp.usage.completion_tokens,
+                    "estimated": False,
+                }
+            )
         return resp.choices[0].message.content or ""
 
 
@@ -110,6 +117,7 @@ class AnthropicClient(LLMClient):
     def __init__(self, model: str = "claude-sonnet-4-5", api_key: str | None = None) -> None:
         super().__init__()
         import anthropic  # lazy import: llm extras are optional
+
         self.model_name = model
         self.client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
 
@@ -125,9 +133,13 @@ class AnthropicClient(LLMClient):
             )
         )
         if resp.usage:
-            self.usage.append({"input_tokens": resp.usage.input_tokens,
-                               "output_tokens": resp.usage.output_tokens,
-                               "estimated": False})
+            self.usage.append(
+                {
+                    "input_tokens": resp.usage.input_tokens,
+                    "output_tokens": resp.usage.output_tokens,
+                    "estimated": False,
+                }
+            )
         # Some content blocks (tool_use, etc.) don't have .text; filter
         # defensively rather than crashing on non-text-only responses.
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
@@ -162,9 +174,7 @@ def parse_json_response(text: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end > start:
         try:
-            return json.loads(text[start:end + 1])
+            return json.loads(text[start : end + 1])
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"model response is not JSON: {text[:200]!r} ({exc.msg})"
-            ) from None
+            raise ValueError(f"model response is not JSON: {text[:200]!r} ({exc.msg})") from None
     raise ValueError(f"model response is not JSON: {text[:200]!r}")
