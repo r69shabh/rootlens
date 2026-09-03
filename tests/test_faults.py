@@ -1,7 +1,5 @@
 """Fault injectors: signature strength + scope isolation + ground truth."""
 
-from datetime import UTC
-
 import pytest
 
 from data_engine.faults import (
@@ -9,6 +7,7 @@ from data_engine.faults import (
     HighTicketRuleInjector,
     NetworkDegradationInjector,
 )
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 
 
@@ -18,10 +17,7 @@ def _make_con(scenario_id: str):
 
 def test_bank_outage_hits_only_target_bank():
     con = _make_con("bank_outage_icici")
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    wc = WindowConfig(start=DEFAULT_WINDOW_START)
     q = """SELECT issuer_bank, AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END)
            FROM transactions WHERE ts >= ? AND ts < ? GROUP BY 1"""
     rates = dict(con.execute(q, [wc.current_window_start, wc.current_window_end]).fetchall())
@@ -41,10 +37,7 @@ def test_bank_outage_hits_only_target_bank():
 
 def test_network_degradation_spans_all_issuers():
     con = _make_con("network_degradation_visa")
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    wc = WindowConfig(start=DEFAULT_WINDOW_START)
     q = """SELECT issuer_bank, AVG(CASE WHEN status='failed' THEN 1.0 ELSE 0.0 END)
            FROM transactions
            WHERE payment_method='card' AND card_network='visa' AND ts >= ? AND ts < ?
@@ -55,11 +48,9 @@ def test_network_degradation_spans_all_issuers():
 
 
 def test_high_ticket_rule_respects_threshold_and_midwindow_onset():
+    from datetime import timedelta
     con = _make_con("high_ticket_rule_10k")
-    from datetime import datetime, timedelta
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    wc = WindowConfig(start=DEFAULT_WINDOW_START)
     first_hour_end = wc.current_window_start + timedelta(hours=1)
     # before the rule: no excess failures for high amounts
     early_fr = con.execute(
@@ -92,10 +83,7 @@ def test_compound_produces_two_faults_and_ground_truth():
 
 
 def test_injector_validates_inputs():
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    wc = WindowConfig(start=DEFAULT_WINDOW_START)
     with pytest.raises(ValueError):
         BankOutageInjector(wc, "NOT_A_BANK")
     with pytest.raises(ValueError):

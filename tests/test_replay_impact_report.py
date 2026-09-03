@@ -1,11 +1,10 @@
 """Replay caching, business-impact estimation, markdown report."""
 
 import json
-from datetime import UTC, datetime
 
 import pytest
 
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.agent import diagnose
 from diagnosis.impact import MANUAL_BASELINE_MINUTES, estimate_impact
@@ -18,7 +17,7 @@ from diagnosis.replay import (
 from eval.harness import score_result
 from eval.report import to_markdown
 
-_WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+_WC = WindowConfig(start=DEFAULT_WINDOW_START)
 DIAG = dict(
     current_start=_WC.current_window_start, current_end=_WC.current_window_end,
     baseline_start=_WC.start, baseline_end=_WC.current_window_start,

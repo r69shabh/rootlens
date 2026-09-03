@@ -1,14 +1,13 @@
 """Agent loop with a scripted LLM: protocol, round cap, evidence chain."""
 
 import json
-from datetime import UTC, datetime
 
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.agent import diagnose
 from diagnosis.llm_client import ScriptedLLMClient, parse_json_response
 
-WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 ARGS = dict(
     current_start=WC.current_window_start, current_end=WC.current_window_end,
     baseline_start=WC.start, baseline_end=WC.current_window_start,

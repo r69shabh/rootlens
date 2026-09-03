@@ -18,9 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from datetime import UTC, datetime  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402  (used for stamp)
 
-from data_engine.generator import WindowConfig  # noqa: E402
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig  # noqa: E402
 from data_engine.scenarios import SCENARIOS  # noqa: E402
 from diagnosis.agent import diagnose  # noqa: E402
 from diagnosis.baseline_agent import rule_based_diagnose  # noqa: E402
@@ -49,7 +49,7 @@ def run(agent: str, scenario_ids: list[str] | None = None,
         scenario = SCENARIOS[sid]
         gt = ground_truth_for(scenario)
         con, _ = scenario.build_dataset()
-        wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+        wc = WindowConfig(start=DEFAULT_WINDOW_START)
         bounds = wc.bounds()
 
         if agent == "rule":
@@ -95,12 +95,16 @@ def run(agent: str, scenario_ids: list[str] | None = None,
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{agent.replace(':', '_')}_results.json").write_text(json.dumps(
+    # timestamped filenames so parallel runs don't clobber each other and the
+    # gitignored results dir doesn't accumulate ambiguous "latest" files
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    prefix = f"{stamp}_{agent.replace(':', '_')}"
+    (out / f"{prefix}_results.json").write_text(json.dumps(
         {"agent": agent, "details": details,
          "standings": [vars(s) for s in board.standings()]},
         indent=2, default=str))
-    (out / f"{agent.replace(':', '_')}_leaderboard.md").write_text(board.to_markdown())
-    print(f"\nresults written to {out}/")
+    (out / f"{prefix}_leaderboard.md").write_text(board.to_markdown())
+    print(f"\nresults written to {out}/{prefix}_*")
     return {"tier_reports": tier_reports, "board": board}
 
 
@@ -118,9 +122,14 @@ def main() -> int:
         ids = [sid for sid in sorted(SCENARIOS)
                if sid in wanted or SCENARIOS[sid].tier in wanted]
     results = run(ns.agent, ids)
-    # exit non-zero if clean-tier accuracy is below target (architecture: >85%)
+    # exit non-zero if clean-tier accuracy is below target (architecture: >85%).
+    # Use the Wilson lower bound so a flaky 4/5=80% on a small N correctly
+    # fails the gate instead of passing on point estimate.
     clean = results["tier_reports"].get("clean")
-    return 0 if clean is None or clean.accuracy >= 0.85 else 1
+    if clean is None or clean.total == 0:
+        return 0
+    lower, _ = clean.wilson_95ci()
+    return 0 if lower >= 0.85 else 1
 
 
 if __name__ == "__main__":

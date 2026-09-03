@@ -1,12 +1,10 @@
 """Week-2 faults: retry storm, checkout funnel, settlement delay, red herrings, noisy."""
 
-from datetime import UTC, datetime
-
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.anomaly_scan import scan
 
-WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 S, E = WC.current_window_start, WC.current_window_end
 MID = S + (E - S) / 2
 

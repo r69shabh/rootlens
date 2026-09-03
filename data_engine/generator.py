@@ -23,6 +23,11 @@ FAILURE_CODES_BY_METHOD = {
 
 BASE_FAILURE_RATE = 0.03
 
+# Single source of truth for the canonical window start. Every scenario, script,
+# UI entrypoint, and test must use this instead of a hardcoded datetime, so a
+# window change cannot silently desync ground truth from diagnosis.
+DEFAULT_WINDOW_START = datetime(2026, 8, 24, tzinfo=UTC)
+
 AMOUNT_BUCKETS = [
     ("<500", 0.0, 500.0),
     ("500-2k", 500.0, 2000.0),
@@ -117,7 +122,7 @@ class TransactionGenerator:
 
     def __init__(self, seed: int, window: WindowConfig | None = None, txns_per_day: int = 4000):
         self.seed = seed
-        self.window = window or WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+        self.window = window or WindowConfig(start=DEFAULT_WINDOW_START)
         self.txns_per_day = txns_per_day
         self.rng = np.random.default_rng(seed)
 

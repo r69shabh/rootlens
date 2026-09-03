@@ -70,9 +70,34 @@ class TierReport:
     def accuracy(self) -> float:
         return self.correct / self.total if self.total else 0.0
 
+    def wilson_95ci(self) -> tuple[float, float]:
+        """Wilson 95% confidence interval on the accuracy proportion.
+
+        Honest per-tier numbers need this: with 8/8 = 100% the interval is
+        [0.63, 1.00], so the README's "100%" is misleading on small N.
+        """
+        return _wilson_95ci(self.correct, self.total)
+
     def summary(self) -> str:
-        return (f"[{self.tier}] accuracy {self.correct}/{self.total} = {self.accuracy:.0%}, "
+        if self.total:
+            lo, hi = self.wilson_95ci()
+            return (f"[{self.tier}] accuracy {self.correct}/{self.total} = {self.accuracy:.0%} "
+                    f"(95% CI {lo:.0%}-{hi:.0%}), "
+                    f"inconclusive {self.inconclusive}, false_positives {self.false_positives}")
+        return (f"[{self.tier}] no runs, "
                 f"inconclusive {self.inconclusive}, false_positives {self.false_positives}")
+
+
+def _wilson_95ci(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval — well-behaved at 0/0 and 1/1, unlike the
+    normal approximation. Standard reference implementation."""
+    if total == 0:
+        return (0.0, 0.0)
+    p = successes / total
+    denom = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denom
+    half = (z * ((p * (1 - p) + z * z / (4 * total)) / total) ** 0.5) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
 
 
 def score_batch(results: list[tuple[DiagnosisResult, dict]]) -> dict[str, TierReport]:

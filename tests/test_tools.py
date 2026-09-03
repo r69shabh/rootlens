@@ -1,11 +1,12 @@
 """Tools: whitelist enforcement, SQL parameterization, correct metrics."""
 
-from datetime import UTC
-
 import pytest
 
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from diagnosis.evidence import EvidenceStore
 from diagnosis.tools import DiagnosisTools, ToolError
+
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 
 
 def _tools(con):
@@ -37,44 +38,32 @@ def test_unknown_tool_raises(healthy_con):
 
 
 def test_query_by_issuer_bank_filters_correctly(healthy_con):
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
     t = _tools(healthy_con)
     rows = t.query_transactions(
         filters={"issuer_bank": "ICICI"}, group_by=["status"],
-        metrics=["count"], start=wc.start, end=wc.end,
+        metrics=["count"], start=WC.start, end=WC.end,
     )
     total_icici = healthy_con.execute(
         "SELECT COUNT(*) FROM transactions WHERE issuer_bank='ICICI' AND ts >= ? AND ts < ?",
-        [wc.start, wc.end],
+        [WC.start, WC.end],
     ).fetchone()[0]
     assert sum(r["count"] for r in rows) == total_icici
 
 
 def test_timeseries_and_baseline_compare(healthy_con):
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
     t = _tools(healthy_con)
-    ts = t.timeseries("success_rate", "hour", wc.current_window_start, wc.current_window_end)
+    ts = t.timeseries("success_rate", "hour", WC.current_window_start, WC.current_window_end)
     assert len(ts) >= 2
-    z = t.baseline_compare("success_rate", wc.current_window_start, wc.current_window_end,
-                           wc.start, wc.current_window_start)
+    z = t.baseline_compare("success_rate", WC.current_window_start, WC.current_window_end,
+                           WC.start, WC.current_window_start)
     assert abs(z["z_score"]) < 3  # healthy data: no big deviation
 
 
 def test_every_call_is_logged_to_evidence_store(healthy_con):
-    from datetime import datetime
-
-    from data_engine.generator import WindowConfig
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
     store = EvidenceStore()
     t = DiagnosisTools(healthy_con, store)
-    t.query_transactions(filters={"issuer_bank": "SBI"}, start=wc.start, end=wc.end)
-    t.timeseries("count", "hour", wc.current_window_start, wc.current_window_end)
+    t.query_transactions(filters={"issuer_bank": "SBI"}, start=WC.start, end=WC.end)
+    t.timeseries("count", "hour", WC.current_window_start, WC.current_window_end)
     assert len(store.entries) == 2
     assert store.entries[0].call_id == "call_001"
     assert store.entries[0].args["filters"] == {"issuer_bank": "SBI"}

@@ -1,18 +1,17 @@
 """Week-3: rule-based baseline agent, leaderboard, eval runner."""
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.baseline_agent import rule_based_diagnose
 from eval.harness import score_result
 from eval.leaderboard import Leaderboard, RunRecord
 
-WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 BOUNDS = (WC.current_window_start, WC.current_window_end, WC.start, WC.current_window_start)
 
 CLEAN_FAULT_SCENARIOS = [
@@ -115,9 +114,12 @@ def test_run_eval_rule_end_to_end(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     re_eval.run("rule", ids, out_dir=str(out))
     files = list(Path(out).glob("*"))
-    assert any(f.name.endswith("_results.json") for f in files)
-    assert any(f.name.endswith("_leaderboard.md") for f in files)
-    data = json.loads((out / "rule_results.json").read_text())
+    # timestamped filenames; the prefix is YYYYMMDDTHHMMSSZ_agent
+    results = [f for f in files if f.name.endswith("_rule_results.json")]
+    leaderboard = [f for f in files if f.name.endswith("_rule_leaderboard.md")]
+    assert results, f"no results file in {files}"
+    assert leaderboard, f"no leaderboard file in {files}"
+    data = json.loads(results[0].read_text())
     by_sid = {d["scenario_id"]: d for d in data["details"]}
     assert by_sid["bank_outage_icici"]["score"]["correct"] is True
     assert by_sid["healthy"]["score"]["correct"] is True  # control: no false alarm

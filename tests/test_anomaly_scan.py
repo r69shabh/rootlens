@@ -1,12 +1,10 @@
 """Stage 1: the deterministic scan must find the injected fault — and stay quiet on healthy data."""
 
-from datetime import UTC, datetime
-
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.anomaly_scan import scan
 
-WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 
 
 def _scan(con):

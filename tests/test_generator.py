@@ -1,12 +1,10 @@
 """Synthetic data engine: determinism + sanity."""
 
-from datetime import UTC, datetime
-
-from data_engine.generator import TransactionGenerator, WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, TransactionGenerator, WindowConfig
 
 
 def _gen(seed=42, txns=2000):
-    w = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    w = WindowConfig(start=DEFAULT_WINDOW_START)
     return TransactionGenerator(seed=seed, window=w, txns_per_day=txns)
 
 

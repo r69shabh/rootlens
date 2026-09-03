@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
 
 from data_engine.faults import (
     BankOutageInjector,
@@ -16,7 +15,7 @@ from data_engine.faults import (
     RetryStormInjector,
     SettlementDelayInjector,
 )
-from data_engine.generator import TransactionGenerator, WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, TransactionGenerator, WindowConfig
 
 
 def record_fault_events(con, faults: list[InjectedFault]) -> None:
@@ -32,17 +31,35 @@ def record_fault_events(con, faults: list[InjectedFault]) -> None:
     )
 
 
+SEED = 42
+
+
 @dataclass(frozen=True)
 class Scenario:
     scenario_id: str
     tier: str
     description: str
     build: object  # callable() -> (con, list[InjectedFault])
+    seed: int = SEED
+    # Captured at construction so with_seed can rebuild the same fault layout
+    # on a different transaction stream. Single injector OR a list of injectors.
+    _injector: object = None
+    _injectors: tuple = ()
 
     def build_dataset(self):
         con, faults = self.build()
         record_fault_events(con, faults)
         return con, faults
+
+    def with_seed(self, seed: int) -> Scenario:
+        """Re-bind this scenario to a different generator seed."""
+        inj_list = list(self._injectors) if self._injectors else (
+            [self._injector] if self._injector else None
+        )
+        return replace(self, seed=seed, build=_make(
+            injector=self._injector, injectors=inj_list,
+            tier=self.tier, seed=seed,
+        ))
 
     def ground_truth(self) -> dict:
         con, faults = self.build_dataset()
@@ -56,18 +73,15 @@ class Scenario:
         }
 
 
-SEED = 42
-
-
 def _base_window() -> WindowConfig:
-    return WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    return WindowConfig(start=DEFAULT_WINDOW_START)
 
 
-def _make(gen_kwargs=None, injector=None, injectors=None, tier=None):
-    gen_kwargs = gen_kwargs or {}
+def _make(gen_kwargs=None, injector=None, injectors=None, tier=None, seed: int = SEED):
+    gen_kwargs = {**(gen_kwargs or {}), "seed": seed}
 
     def build():
-        gen = TransactionGenerator(seed=SEED, **gen_kwargs)
+        gen = TransactionGenerator(**gen_kwargs)
         con = gen.generate()
         inj_list = injectors if injectors is not None else ([injector] if injector else [])
         injected = []
@@ -91,32 +105,39 @@ SCENARIOS: dict[str, Scenario] = {
         "bank_outage_icici", "clean",
         "Issuer bank outage on ICICI.",
         _make(injector=BankOutageInjector(_base_window(), "ICICI")),
+        _injector=BankOutageInjector(_base_window(), "ICICI"),
     ),
     "bank_outage_kotak": Scenario(
         "bank_outage_kotak", "clean",
         "Issuer bank outage on KOTAK (smallest issuer, lower volume).",
         _make(injector=BankOutageInjector(_base_window(), "KOTAK")),
+        _injector=BankOutageInjector(_base_window(), "KOTAK"),
     ),
     "network_degradation_visa": Scenario(
         "network_degradation_visa", "clean",
         "Card network degradation on visa across all issuers.",
         _make(injector=NetworkDegradationInjector(_base_window(), "visa")),
+        _injector=NetworkDegradationInjector(_base_window(), "visa"),
     ),
     "network_degradation_rupay": Scenario(
         "network_degradation_rupay", "clean",
         "Card network degradation on rupay (low volume network).",
         _make(injector=NetworkDegradationInjector(_base_window(), "rupay", failure_rate=0.50)),
+        _injector=NetworkDegradationInjector(_base_window(), "rupay", failure_rate=0.50),
     ),
     "high_ticket_rule_10k": Scenario(
         "high_ticket_rule_10k", "clean",
         "Risk rule starts declining amount > 10000 mid-window.",
         _make(injector=HighTicketRuleInjector(_base_window(), 10000)),
+        _injector=HighTicketRuleInjector(_base_window(), 10000),
     ),
     "compound_outage_plus_rule": Scenario(
         "compound_outage_plus_rule", "compound",
         "ICICI outage overlapping with a >10000 rule trigger.",
         _make(injectors=[BankOutageInjector(_base_window(), "ICICI"),
                          HighTicketRuleInjector(_base_window(), 10000)]),
+        _injectors=(BankOutageInjector(_base_window(), "ICICI"),
+                    HighTicketRuleInjector(_base_window(), 10000)),
     ),
 }
 
@@ -126,16 +147,19 @@ for _w2 in (
         "retry_storm_gateway", "clean",
         "Diffuse retry storm: timeouts + duplicate attempts from mid-window.",
         _make(injector=RetryStormInjector(_base_window())),
+        _injector=RetryStormInjector(_base_window()),
     ),
     Scenario(
         "checkout_funnel_break", "clean",
         "Client-side checkout break: all payment methods fail with checkout_error.",
         _make(injector=CheckoutFunnelBreakInjector(_base_window())),
+        _injector=CheckoutFunnelBreakInjector(_base_window()),
     ),
     Scenario(
         "settlement_delay_mch007", "clean",
         "One merchant's successes stall as pending; nothing actually fails.",
         _make(injector=SettlementDelayInjector(_base_window(), "mch_007")),
+        _injector=SettlementDelayInjector(_base_window(), "mch_007"),
     ),
     Scenario(
         "red_herring_campaign_vs_outage", "red_herring",
@@ -143,11 +167,14 @@ for _w2 in (
         _make(injectors=[MarketingSpikeInjector(_base_window(), "north"),
                          BankOutageInjector(_base_window(), "HDFC")],
               tier="red_herring"),
+        _injectors=(MarketingSpikeInjector(_base_window(), "north"),
+                    BankOutageInjector(_base_window(), "HDFC")),
     ),
     Scenario(
         "benign_volume_spike", "red_herring",
         "False-positive control: campaign spike alone, healthy success rates.",
         _make(injector=MarketingSpikeInjector(_base_window(), "north")),
+        _injector=MarketingSpikeInjector(_base_window(), "north"),
     ),
     Scenario(
         "noisy_bank_outage_hdfc", "noisy",
@@ -155,6 +182,8 @@ for _w2 in (
         _make(injector=BankOutageInjector(_base_window(), "HDFC", failure_rate=0.62,
                                           mixed_codes=True),
               tier="noisy"),
+        _injector=BankOutageInjector(_base_window(), "HDFC", failure_rate=0.62,
+                                     mixed_codes=True),
     ),
     Scenario(
         "noisy_network_amex", "noisy",
@@ -162,6 +191,7 @@ for _w2 in (
         _make(injector=NetworkDegradationInjector(_base_window(), "amex",
                                                   failure_rate=0.42),
               tier="noisy"),
+        _injector=NetworkDegradationInjector(_base_window(), "amex", failure_rate=0.42),
     ),
 ):
     SCENARIOS[_w2.scenario_id] = _w2

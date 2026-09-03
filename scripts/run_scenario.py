@@ -18,9 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from datetime import UTC, datetime  # noqa: E402
-
-from data_engine.generator import WindowConfig  # noqa: E402
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig  # noqa: E402
 from data_engine.scenarios import SCENARIOS, get_scenario  # noqa: E402
 from diagnosis.agent import diagnose  # noqa: E402
 from diagnosis.anomaly_scan import scan  # noqa: E402
@@ -29,7 +27,7 @@ from diagnosis.replay import RecordingLLMClient, ReplayCache, ReplayLLMClient  #
 from eval.harness import score_result  # noqa: E402
 from eval.report import to_markdown  # noqa: E402
 
-WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+WC = WindowConfig(start=DEFAULT_WINDOW_START)
 
 
 def window_bounds():

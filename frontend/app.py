@@ -11,11 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from datetime import UTC, datetime
-
 import streamlit as st
 
-from data_engine.generator import WindowConfig
+from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import SCENARIOS, get_scenario
 from diagnosis.agent import diagnose
 from diagnosis.llm_client import get_client
@@ -29,7 +27,7 @@ st.caption("Every number traceable to a tool call. No LLM-invented evidence.")
 
 
 def _window():
-    wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
+    wc = WindowConfig(start=DEFAULT_WINDOW_START)
     return wc.bounds()
 
 

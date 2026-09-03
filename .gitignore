@@ -9,3 +9,7 @@ __pycache__/
 # generated at runtime
 data/
 .DS_Store
+
+# eval run artifacts: timestamped outputs from scripts/run_eval.py
+# (keep the manually-committed baseline results for reference: rule_*)
+eval/results/20*
