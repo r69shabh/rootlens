@@ -56,6 +56,25 @@ class WindowConfig:
     def end(self) -> datetime:
         return self.current_window_end
 
+    def bounds(self) -> WindowBounds:
+        """Named window bounds: baseline-first order, no positional tuples."""
+        return WindowBounds(
+            baseline_start=self.start,
+            baseline_end=self.current_window_start,
+            current_start=self.current_window_start,
+            current_end=self.current_window_end,
+        )
+
+
+@dataclass(frozen=True)
+class WindowBounds:
+    """The four timestamps every scan/diagnosis call needs, by name."""
+
+    baseline_start: datetime
+    baseline_end: datetime
+    current_start: datetime
+    current_end: datetime
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS transactions (
@@ -168,6 +187,10 @@ class TransactionGenerator:
             csv.writer(fh).writerows(data)
             path = fh.name
         try:
+            # COPY takes no bound parameters for the file path, so the path is
+            # interpolated: reject quotes to keep TMPDIR-style injection out.
+            if "'" in path:
+                raise ValueError(f"unsafe temp path for COPY: {path!r}")
             con.execute(
                 f"COPY transactions FROM '{path}' (FORMAT CSV, NULLSTR '')"
             )

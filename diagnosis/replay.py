@@ -49,6 +49,11 @@ class RecordingLLMClient(LLMClient):
         self.cache = cache
         self.model_name = inner.model_name
 
+    @property
+    def usage(self) -> list[dict]:
+        # token/cost accounting lives on the wrapped live client
+        return self.inner.usage
+
     def chat(self, system: str, messages: list[dict]) -> str:
         response = self.inner.chat(system, messages)
         self.cache.put(system, messages, response, self.model_name)
@@ -61,6 +66,7 @@ class ReplayLLMClient(LLMClient):
     model_name = "replay"
 
     def __init__(self, cache: ReplayCache) -> None:
+        super().__init__()
         self.cache = cache
 
     def chat(self, system: str, messages: list[dict]) -> str:

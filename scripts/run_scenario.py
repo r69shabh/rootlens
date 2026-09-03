@@ -33,7 +33,7 @@ WC = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
 
 
 def window_bounds():
-    return WC.start, WC.current_window_start, WC.current_window_start, WC.current_window_end
+    return WC.bounds()
 
 
 def deterministic_check(con, faults, segments) -> bool:
@@ -96,7 +96,9 @@ def main() -> int:
     gt = {"scenario_id": scenario.scenario_id, "difficulty_tier": scenario.tier,
           "expected_labels": [f.label for f in faults],
           "expected_fault_types": sorted({f.fault_type for f in faults})}
-    baseline_start, baseline_end, current_start, current_end = window_bounds()
+    bounds = window_bounds()
+    baseline_start, baseline_end = bounds.baseline_start, bounds.baseline_end
+    current_start, current_end = bounds.current_start, bounds.current_end
 
     print(f"=== RootLens proof: {scenario.scenario_id} ({scenario.tier}) ===")
     print("\n-- Stage 1: deterministic segmented anomaly scan (no LLM) --")
@@ -130,12 +132,12 @@ def main() -> int:
         llm.cache.save()
         print(f"transcript cached to {ns.record} ({len(llm.cache)} steps)")
 
-    print(to_markdown(result, store=result._store, ground_truth=gt))
+    print(to_markdown(result, store=result.store, ground_truth=gt))
     print(f"eval: {json.dumps(score, default=str)}")
     if ns.dump:
         Path(ns.dump).write_text(json.dumps(
             {"result": result.to_json(), "score": score,
-             "evidence": result._store.to_json()}, indent=2, default=str))
+              "evidence": result.store.to_json()}, indent=2, default=str))
         print(f"full audit trail written to {ns.dump}")
     con.close()
     return 0 if score["correct"] or result.status == "inconclusive" else 1

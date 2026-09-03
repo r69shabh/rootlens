@@ -30,8 +30,7 @@ st.caption("Every number traceable to a tool call. No LLM-invented evidence.")
 
 def _window():
     wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
-    return (wc.start, wc.current_window_start,
-            wc.current_window_start, wc.current_window_end)
+    return wc.bounds()
 
 
 with st.sidebar:
@@ -56,7 +55,9 @@ with st.sidebar:
                   "difficulty_tier": scenario.tier,
                   "expected_labels": [f.label for f in faults],
                   "expected_fault_types": sorted({f.fault_type for f in faults})}
-            b0, b1, c0, c1 = _window()
+            bounds = _window()
+            b0, b1, c0, c1 = (bounds.baseline_start, bounds.baseline_end,
+                              bounds.current_start, bounds.current_end)
             if mode == "Replay cache":
                 llm = ReplayLLMClient(ReplayCache(cache_path))
             else:
@@ -109,7 +110,7 @@ if result.disconfirmation:
         st.markdown(f"- {d}")
 
 # --- evidence chain ----------------------------------------------------------
-store = result._store
+store = result.store
 st.subheader(f"Evidence chain ({len(result.evidence_call_ids)} cited of "
              f"{len(store.entries)} logged calls)")
 for entry in store.entries:

@@ -86,7 +86,7 @@ def test_markdown_report_renders_verdict_and_evidence():
                                 "disconfirmation": ["compared issuers: isolated to ICICI"]}}),
     ]
     result = diagnose(con, llm=ScriptedLLMClient(responses), scenario_id="md", **DIAG)
-    md = to_markdown(result, store=result._store,
+    md = to_markdown(result, store=result.store,
                      ground_truth={"expected_labels": ["bank_outage:ICICI"]})
     assert "bank_outage:ICICI" in md
     assert "call_001" in md

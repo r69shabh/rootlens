@@ -50,18 +50,19 @@ def run(agent: str, scenario_ids: list[str] | None = None,
         gt = ground_truth_for(scenario)
         con, _ = scenario.build_dataset()
         wc = WindowConfig(start=datetime(2026, 8, 24, tzinfo=UTC))
-        # order matches (current_start, current_end, baseline_start, baseline_end)
-        bounds = (wc.current_window_start, wc.current_window_end,
-                  wc.start, wc.current_window_start)
+        bounds = wc.bounds()
 
         if agent == "rule":
             result = rule_based_diagnose(
-                con, *bounds, scenario_id=sid)
+                con, bounds.current_start, bounds.current_end,
+                bounds.baseline_start, bounds.baseline_end, scenario_id=sid)
             usage, calls = [], 0
         else:
             provider = agent.split(":")[0]
             llm = get_client(provider, model=agent.split(":", 1)[1] if ":" in agent else None)
-            result = diagnose(con, *bounds, llm=llm, scenario_id=sid)
+            result = diagnose(con, bounds.current_start, bounds.current_end,
+                              bounds.baseline_start, bounds.baseline_end,
+                              llm=llm, scenario_id=sid)
             usage, calls = llm.usage, len(llm.usage)
 
         score = score_result(result, gt)

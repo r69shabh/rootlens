@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from diagnosis.agent import DiagnosisResult
@@ -9,6 +10,15 @@ from diagnosis.agent import DiagnosisResult
 
 def _normalize(label: str) -> str:
     return label.strip().lower().replace(" ", "_")
+
+
+def _family_tokens(label: str) -> set[str]:
+    """Split a normalized label into exact tokens (family + qualifiers).
+
+    Substring matching ("outage" in "bank_outage:...") inflates accuracy;
+    token membership does not.
+    """
+    return set(re.split(r"[^a-z0-9_]+", _normalize(label))) - {""}
 
 
 def score_result(result: DiagnosisResult, ground_truth: dict) -> dict:
@@ -29,18 +39,19 @@ def score_result(result: DiagnosisResult, ground_truth: dict) -> dict:
             "predicted": None, "expected": expected,
         }
     predicted = _normalize(result.root_cause or "")
+    pred_tokens = _family_tokens(predicted)
     # Match on family tokens (the part of each label before ':'), so compound
     # predictions like "compound:bank_outage+rule_trigger" score correct when every
     # injected fault family is covered.
     families = [lbl.split(":")[0] for lbl in expected]
     if len(families) > 1:
-        correct = all(f in predicted for f in families)
+        correct = all(f in pred_tokens for f in families)
     else:
         fam = families[0]
-        correct = fam in predicted
+        correct = fam in pred_tokens
     return {
         "scenario_id": ground_truth["scenario_id"], "tier": ground_truth["difficulty_tier"],
-        "correct": correct, "partial": (not correct) and any(f in predicted for f in families),
+        "correct": correct, "partial": (not correct) and any(f in pred_tokens for f in families),
         "inconclusive": False, "predicted": result.root_cause, "expected": expected,
         "confidence": result.confidence, "rounds_used": result.rounds_used,
     }
@@ -73,6 +84,6 @@ def score_batch(results: list[tuple[DiagnosisResult, dict]]) -> dict[str, TierRe
         rep.total += 1
         rep.correct += int(s["correct"])
         rep.inconclusive += int(s["inconclusive"])
-        rep.false_positives += int(gt["scenario_id"] == "healthy" and s["predicted"] is not None)
+        rep.false_positives += int(s.get("false_positive", False))
         rep.details.append(s)
     return reports

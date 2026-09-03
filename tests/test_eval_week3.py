@@ -49,7 +49,7 @@ def test_rule_baseline_diagnoses_all_faults(sid):
     assert result.status == "verdict"
     assert result.evidence_call_ids, "rule agent must cite evidence"
     for cid in result.evidence_call_ids:
-        assert result._store.get(cid) is not None
+        assert result.store.get(cid) is not None
     con.close()
 
 

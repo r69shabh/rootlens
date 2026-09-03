@@ -37,7 +37,7 @@ def test_agent_runs_tool_calls_then_verdict():
     assert result.status == "verdict"
     assert result.root_cause == "test_cause:x"
     assert result.evidence_call_ids == ["call_001"]
-    assert result._store.get("call_001") is not None
+    assert result.store.get("call_001") is not None
     assert result.transcript[-1]["role"] == "assistant"
 
 

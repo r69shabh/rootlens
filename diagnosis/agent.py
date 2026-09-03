@@ -66,6 +66,7 @@ class DiagnosisResult:
     rounds_used: int = 0
     time_to_diagnosis_minutes: float | None = None
     transcript: list[dict] = field(default_factory=list)
+    store: EvidenceStore | None = None  # full audit trail travels with the result
 
     def to_json(self) -> dict:
         return {
@@ -269,5 +270,5 @@ def diagnose(con, current_start, current_end, baseline_start, baseline_end,
     result.impact = {"estimated": estimate_impact(
         con, current_start, current_end, elapsed_minutes), **result.impact}
     result.transcript = transcript
-    result._store = store  # full audit trail travels with the result
+    result.store = store
     return result

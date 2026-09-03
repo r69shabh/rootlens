@@ -15,6 +15,7 @@ from duckdb import DuckDBPyConnection
 from diagnosis.agent import CONFIDENCE_THRESHOLD, DiagnosisResult
 from diagnosis.anomaly_scan import AnomalousSegment, scan
 from diagnosis.evidence import EvidenceStore
+from diagnosis.impact import estimate_impact
 from diagnosis.tools import DiagnosisTools
 
 
@@ -114,6 +115,7 @@ def rule_based_diagnose(con: DuckDBPyConnection, current_start, current_end,
         # identity is meaningless. The failure-code mix identifies them first.
         mix = _failure_code_mix(tools, current_start, current_end)
         label, checks = None, []
+        top = segments[0]
         if mix:
             ranked = sorted(mix.items(), key=lambda kv: -kv[1])
             (top_code, top_n), second_n = ranked[0], (ranked[1][1] if len(ranked) > 1 else 0)
@@ -127,11 +129,7 @@ def rule_based_diagnose(con: DuckDBPyConnection, current_start, current_end,
                               "degradation is diffuse across all payment methods "
                               "-> client-side checkout break")
         if label is None:
-            top = segments[0]
             label, checks = _label_for_segment(tools, top, current_start, current_end)
-            top = segments[0]
-        else:
-            top = segments[0]
         # compound: two orthogonal concentrated segments (bank + amount rule)
         compound = None
         for s in segments[1:3]:
@@ -162,12 +160,11 @@ def rule_based_diagnose(con: DuckDBPyConnection, current_start, current_end,
             rounds_used=len(cited),
         )
 
-    from diagnosis.impact import estimate_impact
     elapsed = (time.perf_counter() - t0) / 60
     result.time_to_diagnosis_minutes = round(elapsed, 2)
     result.impact = {"estimated": estimate_impact(
         con, current_start, current_end, elapsed), **result.impact}
     result.transcript = [{"role": "context",
                           "content": f"rule-based baseline, {len(segments)} segments"}]
-    result._store = store
+    result.store = store
     return result
