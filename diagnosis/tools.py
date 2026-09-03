@@ -16,6 +16,13 @@ FILTERABLE_COLUMNS = {
 GROUPABLE_COLUMNS = FILTERABLE_COLUMNS | {"ts_hour"}
 METRICS = {"count", "success_rate", "failure_rate", "avg_amount", "p95_latency"}
 
+# Hard cap on rows returned by any aggregating tool. Protects LLM context and
+# memory when a real dataset is queried with broad filters. The cap is applied
+# via SQL LIMIT; full row-count is reported in the audit trail so the agent
+# can see it lost data and re-query tighter.
+MAX_RESULT_ROWS = 200
+TRUNCATION_KEY = "_truncated"
+
 AMOUNT_BUCKET_SQL = """
 CASE WHEN amount < 500 THEN '<500'
      WHEN amount < 2000 THEN '500-2k'
@@ -84,9 +91,19 @@ class DiagnosisTools:
 
     def _run(self, tool: str, args: dict, sql: str, params: list) -> list[dict]:
         t0 = time.perf_counter()
-        rows = self.con.execute(sql, params).fetchall()
+        # LIMIT is pushed into DuckDB so we don't materialize the full result;
+        # fetching one extra row lets us detect truncation without a second
+        # round trip and without a COUNT(*) over the same predicate.
+        capped_sql = sql.rstrip().rstrip(";") + f" LIMIT {MAX_RESULT_ROWS + 1}"
+        rows = self.con.execute(capped_sql, params).fetchall()
         cols = [d[0] for d in self.con.description]
+        truncated = len(rows) > MAX_RESULT_ROWS
+        if truncated:
+            rows = rows[:MAX_RESULT_ROWS]
         result = [dict(zip(cols, r, strict=True)) for r in rows]
+        if truncated:
+            result.append({TRUNCATION_KEY: True, "rows_returned": MAX_RESULT_ROWS,
+                           "note": "result truncated; narrow filters or shorten window"})
         self.store.log(tool, args, result, (time.perf_counter() - t0) * 1000)
         return result
 
@@ -177,10 +194,26 @@ class DiagnosisTools:
             if not vals:
                 raise ToolError(f"no data for {name} window")
             mean = sum(vals) / len(vals)
-            var = sum((v - mean) ** 2 for v in vals) / max(len(vals) - 1, 1)
-            out[name] = {"mean": mean, "std": var ** 0.5, "n_hours": len(vals),
+            # Sample std; with n_hours==1 the variance denominator (n-1) clamps
+            # to 1 so the std is the single sample's deviation-from-itself == 0,
+            # not nan. We surface this as std_is_degenerate so callers don't
+            # trust an enormous z-score that came from dividing by ~0.
+            n = len(vals)
+            var = sum((v - mean) ** 2 for v in vals) / max(n - 1, 1)
+            out[name] = {"mean": mean, "std": var ** 0.5, "n_hours": n,
                          "latest": vals[-1] if name == "current" else None}
-        std = max(out["baseline"]["std"], 1e-9)
+        # std floor: with a near-constant baseline (e.g. synthetic), std can
+        # be ~0 and any tiny current-window jitter explodes the z-score. Use
+        # a more meaningful floor derived from the metric's range, not 1e-9.
+        # For proportion-like metrics a 0.01 floor is still tight but stops
+        # the blowup; metric-agnostic so it covers avg_amount too.
+        metric_range = max(
+            abs(out["baseline"]["mean"]),
+            abs(out["current"]["mean"]), 1.0,
+        )
+        std = max(out["baseline"]["std"], metric_range * 0.01)
+        if out["baseline"]["n_hours"] < 2:
+            out["z_score_reliable"] = False
         out["z_score"] = (out["current"]["mean"] - out["baseline"]["mean"]) / std
         self.store.log("baseline_compare", args, out, 0.0)
         return out

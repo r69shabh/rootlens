@@ -47,24 +47,41 @@ with st.sidebar:
         cache_path = st.text_input("Replay cache file", cache_path)
     if st.button("Diagnose", type="primary", use_container_width=True):
         with st.spinner("Running diagnosis loop..."):
-            scenario = get_scenario(scenario_id)
-            con, faults = scenario.build_dataset()
-            gt = {"scenario_id": scenario.scenario_id,
-                  "difficulty_tier": scenario.tier,
-                  "expected_labels": [f.label for f in faults],
-                  "expected_fault_types": sorted({f.fault_type for f in faults})}
-            bounds = _window()
-            b0, b1, c0, c1 = (bounds.baseline_start, bounds.baseline_end,
-                              bounds.current_start, bounds.current_end)
-            if mode == "Replay cache":
-                llm = ReplayLLMClient(ReplayCache(cache_path))
-            else:
-                llm = get_client(provider)
-            result = diagnose(con, c0, c1, b0, b1, llm=llm,
-                              scenario_id=scenario_id)
-            st.session_state["result"] = result
-            st.session_state["gt"] = gt
-            con.close()
+            try:
+                scenario = get_scenario(scenario_id)
+                con, faults = scenario.build_dataset()
+                gt = {"scenario_id": scenario.scenario_id,
+                      "difficulty_tier": scenario.tier,
+                      "expected_labels": [f.label for f in faults],
+                      "expected_fault_types": sorted({f.fault_type for f in faults})}
+                bounds = _window()
+                b0, b1, c0, c1 = (bounds.baseline_start, bounds.baseline_end,
+                                  bounds.current_start, bounds.current_end)
+                if mode == "Replay cache":
+                    try:
+                        llm = ReplayLLMClient(ReplayCache(cache_path))
+                    except (FileNotFoundError, json.JSONDecodeError) as exc:
+                        st.error(f"Replay cache not usable: {exc}. "
+                                 "Record one first via "
+                                 "`scripts/run_scenario.py --record <file>`.")
+                        st.stop()
+                else:
+                    llm = get_client(provider)
+                result = diagnose(con, c0, c1, b0, b1, llm=llm,
+                                  scenario_id=scenario_id)
+                st.session_state["result"] = result
+                st.session_state["gt"] = gt
+            except LookupError as exc:
+                # Replay cache miss (one transcript step not recorded)
+                st.error(f"Replay cache miss: {exc}. Re-run with --record to "
+                         "refresh the cache for this scenario.")
+            except Exception as exc:  # noqa: BLE001 - surface, don't crash the page
+                st.error(f"Diagnosis failed: {type(exc).__name__}: {exc}")
+            finally:
+                try:
+                    con.close()
+                except Exception:
+                    pass
 
 if "result" not in st.session_state:
     st.info("Pick a scenario and hit **Diagnose**. Replay mode needs a cache file "

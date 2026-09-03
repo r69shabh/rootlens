@@ -9,7 +9,36 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from abc import ABC, abstractmethod
+
+# Retry knobs. 3 attempts with 1s/2s backoff covers a transient 5xx or rate
+# limit without a long stall; the per-call timeout is generous because LLM
+# responses with tool-call prompts can be slow on the first attempt.
+MAX_RETRIES = 3
+RETRY_BACKOFF_S = 1.0
+LLM_TIMEOUT_S = 60.0
+
+
+def _chat_with_retry(call):
+    """Run a provider chat() with bounded retries on transient errors.
+
+    `call` is a zero-arg callable that performs one request and returns the
+    response object. We retry on any exception except ValueError (which is the
+    contract-violation signal from the agent loop and should propagate).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            return call()
+        except ValueError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - retry on any transient provider error
+            last_exc = exc
+            if attempt == MAX_RETRIES - 1:
+                break
+            time.sleep(RETRY_BACKOFF_S * (attempt + 1))
+    raise RuntimeError(f"LLM call failed after {MAX_RETRIES} attempts: {last_exc}") from last_exc
 
 
 class LLMClient(ABC):
@@ -62,10 +91,13 @@ class OpenAIClient(LLMClient):
         self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
 
     def chat(self, system: str, messages: list[dict]) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.model_name,
-            temperature=0,
-            messages=[{"role": "system", "content": system}, *messages],
+        resp = _chat_with_retry(
+            lambda: self.client.chat.completions.create(
+                model=self.model_name,
+                temperature=0,
+                timeout=LLM_TIMEOUT_S,
+                messages=[{"role": "system", "content": system}, *messages],
+            )
         )
         if resp.usage:
             self.usage.append({"input_tokens": resp.usage.prompt_tokens,
@@ -82,18 +114,23 @@ class AnthropicClient(LLMClient):
         self.client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
 
     def chat(self, system: str, messages: list[dict]) -> str:
-        resp = self.client.messages.create(
-            model=self.model_name,
-            max_tokens=2048,
-            temperature=0,
-            system=system,
-            messages=messages,
+        resp = _chat_with_retry(
+            lambda: self.client.messages.create(
+                model=self.model_name,
+                max_tokens=2048,
+                temperature=0,
+                timeout=LLM_TIMEOUT_S,
+                system=system,
+                messages=messages,
+            )
         )
         if resp.usage:
             self.usage.append({"input_tokens": resp.usage.input_tokens,
                                "output_tokens": resp.usage.output_tokens,
                                "estimated": False})
-        return "".join(block.text for block in resp.content if block.type == "text")
+        # Some content blocks (tool_use, etc.) don't have .text; filter
+        # defensively rather than crashing on non-text-only responses.
+        return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
 def get_client(provider: str, model: str | None = None) -> LLMClient:
@@ -107,14 +144,27 @@ def get_client(provider: str, model: str | None = None) -> LLMClient:
 
 
 def parse_json_response(text: str) -> dict:
-    """Robustly extract the JSON object from a model response."""
+    """Robustly extract the JSON object from a model response.
+
+    Always raises ValueError on failure (the agent loop checks for ValueError
+    to send a "invalid JSON, try again" nudge); the raw json.JSONDecodeError
+    must never escape, since the loop's `except ValueError` path is the only
+    recovery mechanism.
+    """
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        start, end = text.find("{"), text.rfind("}")
-        if start != -1 and end > start:
+        pass
+    # fallback: extract the outermost {...} block from surrounding prose
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        try:
             return json.loads(text[start:end + 1])
-        raise ValueError(f"model response is not JSON: {text[:200]!r}") from None
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"model response is not JSON: {text[:200]!r} ({exc.msg})"
+            ) from None
+    raise ValueError(f"model response is not JSON: {text[:200]!r}")

@@ -2,7 +2,15 @@
 
 from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
-from diagnosis.anomaly_scan import scan
+from diagnosis.anomaly_scan import (
+    ONSET_MIN_DROP,
+    ONSET_MIN_VOLUME,
+    SCAN_MIN_DROP,
+    SCAN_MIN_VOLUME,
+    SCAN_MIN_Z,
+    estimate_onset,
+    scan,
+)
 
 WC = WindowConfig(start=DEFAULT_WINDOW_START)
 
@@ -50,3 +58,17 @@ def test_compound_ranks_bank_outage_first_and_rule_in_top3():
 def test_low_volume_kotak_still_detected():
     seg = _top(get_scenario("bank_outage_kotak").build_dataset()[0])
     assert (seg.dimension, seg.value) == ("issuer_bank", "KOTAK")
+
+
+def test_scan_thresholds_are_centralized():
+    # The onset estimator must agree with the scan; centralizing prevents drift.
+    assert SCAN_MIN_VOLUME > 0 and SCAN_MIN_DROP > 0 and SCAN_MIN_Z > 0
+    assert ONSET_MIN_DROP > 0 and ONSET_MIN_VOLUME > 0
+
+
+def test_onset_returns_none_when_no_hour_drops_below_threshold():
+    # healthy scenario: no hour should fall > ONSET_MIN_DROP below baseline
+    con = get_scenario("healthy").build_dataset()[0]
+    onset = estimate_onset(con, WC.current_window_start, WC.current_window_end,
+                           baseline_rate=0.97)
+    assert onset is None

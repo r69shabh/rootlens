@@ -8,6 +8,15 @@ from duckdb import DuckDBPyConnection
 
 SUCCESS_RATE = "AVG(CASE WHEN status = 'success' THEN 1.0 ELSE 0.0 END)"
 
+# Shared scan thresholds. The scan and the onset estimator must agree:
+# a slice the scan ignores cannot trigger an onset point. Centralizing
+# prevents the two from drifting apart.
+SCAN_MIN_VOLUME = 15        # ignore slices with < N txns in the current window
+SCAN_MIN_DROP = 0.08        # ignore slices with smaller success-rate drops
+SCAN_MIN_Z = 4.0            # two-proportion z-test threshold (~40 slices tested)
+ONSET_MIN_DROP = 0.10       # a window hour is "degraded" if it falls this much
+ONSET_MIN_VOLUME = 20       # ...and carries at least this many txns
+
 DIMENSIONS = {
     "issuer_bank": "issuer_bank",
     "card_network": "card_network",
@@ -63,8 +72,8 @@ def _segment_expr(dim: str) -> str:
 
 
 def scan(con: DuckDBPyConnection, current_start, current_end, baseline_start, baseline_end,
-         min_volume: int = 15, min_drop: float = 0.08, min_z: float = 4.0,
-         ) -> list[AnomalousSegment]:
+         min_volume: int = SCAN_MIN_VOLUME, min_drop: float = SCAN_MIN_DROP,
+         min_z: float = SCAN_MIN_Z) -> list[AnomalousSegment]:
     """Compare every dimension slice current-vs-baseline; rank by impact.
 
     Only slices with meaningful volume, a material drop, AND statistical
@@ -164,6 +173,7 @@ def estimate_onset(con, current_start, current_end, baseline_rate: float,
     """First hour in the current window whose success rate falls well below baseline."""
     points = hourly_success_rate(con, current_start, current_end, filters)
     for p in points:
-        if p["success_rate"] < baseline_rate - 0.10 and p["volume"] >= 20:
+        if (p["success_rate"] < baseline_rate - ONSET_MIN_DROP
+                and p["volume"] >= ONSET_MIN_VOLUME):
             return p["hour"]
     return None

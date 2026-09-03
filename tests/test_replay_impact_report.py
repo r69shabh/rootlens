@@ -8,7 +8,7 @@ from data_engine.generator import DEFAULT_WINDOW_START, WindowConfig
 from data_engine.scenarios import get_scenario
 from diagnosis.agent import diagnose
 from diagnosis.impact import MANUAL_BASELINE_MINUTES, estimate_impact
-from diagnosis.llm_client import ScriptedLLMClient
+from diagnosis.llm_client import ScriptedLLMClient, _chat_with_retry
 from diagnosis.replay import (
     RecordingLLMClient,
     ReplayCache,
@@ -46,6 +46,39 @@ def test_replay_miss_is_loud(tmp_path):
     replay = ReplayLLMClient(ReplayCache(cache_path))
     with pytest.raises(LookupError, match="cache miss"):
         replay.chat("sys", [{"role": "user", "content": "never seen"}])
+
+
+def test_chat_with_retry_succeeds_after_transient_error():
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("transient")
+        return "ok"
+
+    assert _chat_with_retry(flaky) == "ok"
+    assert calls["n"] == 3
+
+
+def test_chat_with_retry_gives_up_after_max_attempts():
+    calls = {"n": 0}
+
+    def always_fail():
+        calls["n"] += 1
+        raise RuntimeError("nope")
+
+    with pytest.raises(RuntimeError, match="failed after"):
+        _chat_with_retry(always_fail)
+    assert calls["n"] == 3
+
+
+def test_chat_with_retry_does_not_swallow_value_error():
+    # ValueError is the agent-loop contract violation signal; must propagate
+    def bad():
+        raise ValueError("malformed tool call")
+    with pytest.raises(ValueError, match="malformed"):
+        _chat_with_retry(bad)
 
 
 def test_replay_caches_full_agent_transcript(tmp_path):
