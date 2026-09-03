@@ -1,0 +1,28 @@
+[project]
+name = "rootlens"
+version = "0.1.0"
+description = "Agent that diagnoses payment-failure root causes from deterministic evidence, with a full audit trail and an eval harness against injected ground truth."
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.1",
+    "numpy>=2.0",
+    "faker>=30.0",
+]
+
+[project.optional-dependencies]
+llm = ["openai>=1.50", "anthropic>=0.40"]
+ui = ["streamlit>=1.40"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

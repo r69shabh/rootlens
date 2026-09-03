@@ -1,0 +1,700 @@
+{
+  "agent": "rule",
+  "details": [
+    {
+      "scenario_id": "bank_outage_icici",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "bank_outage_icici",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "bank_outage:ICICI",
+        "expected": [
+          "bank_outage:icici"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "bank_outage:ICICI",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "issuer x network matrix over 25 cells: other issuers healthy across all networks -> isolated to this bank"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 176,
+            "gmv_at_risk_inr": 364644.76,
+            "gmv_at_risk_per_hour_inr": 182322.38,
+            "gmv_protected_estimate_inr": 136741.79,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 176,
+            "gmv_at_risk_inr": 364644.76
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "bank_outage_kotak",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "bank_outage_kotak",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "bank_outage:KOTAK",
+        "expected": [
+          "bank_outage:kotak"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "bank_outage:KOTAK",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "issuer x network matrix over 25 cells: other issuers healthy across all networks -> isolated to this bank"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 99,
+            "gmv_at_risk_inr": 212657.12,
+            "gmv_at_risk_per_hour_inr": 106328.56,
+            "gmv_protected_estimate_inr": 79746.42,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 99,
+            "gmv_at_risk_inr": 212657.12
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "benign_volume_spike",
+      "tier": "red_herring",
+      "score": {
+        "scenario_id": "benign_volume_spike",
+        "tier": "red_herring",
+        "correct": true,
+        "partial": false,
+        "inconclusive": true,
+        "predicted": null,
+        "expected": [],
+        "false_positive": false
+      },
+      "result": {
+        "status": "inconclusive",
+        "root_cause": null,
+        "confidence": null,
+        "evidence_call_ids": [],
+        "disconfirmation": [],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 34,
+            "gmv_at_risk_inr": 68104.15,
+            "gmv_at_risk_per_hour_inr": 34052.08,
+            "gmv_protected_estimate_inr": 25539.06,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          }
+        },
+        "missing": "no anomalous segments crossed significance thresholds; no evidence of a fault in this window",
+        "rounds_used": 0,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "checkout_funnel_break",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "checkout_funnel_break",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "checkout_funnel_break:checkout",
+        "expected": [
+          "checkout_funnel_break:checkout"
+        ],
+        "confidence": 0.9460465388898658,
+        "rounds_used": 1
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "checkout_funnel_break:checkout",
+        "confidence": 0.9460465388898658,
+        "evidence_call_ids": [
+          "call_001"
+        ],
+        "disconfirmation": [
+          "failure-code mix {'checkout_error': 226, 'insufficient_funds': 6, 'network_timeout': 5, 'beneficiary_bank_timeout': 4, 'issuer_declined': 1, 'vpa_invalid': 1}: checkout_error dominates and degradation is diffuse across all payment methods -> client-side checkout break"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 243,
+            "gmv_at_risk_inr": 487796.43,
+            "gmv_at_risk_per_hour_inr": 243898.21,
+            "gmv_protected_estimate_inr": 182923.66,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 243,
+            "gmv_at_risk_inr": 487796.43
+          }
+        },
+        "missing": null,
+        "rounds_used": 1,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "compound_outage_plus_rule",
+      "tier": "compound",
+      "score": {
+        "scenario_id": "compound_outage_plus_rule",
+        "tier": "compound",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "compound:bank_outage+rule_trigger",
+        "expected": [
+          "bank_outage:icici",
+          "rule_trigger:10000"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "compound:bank_outage+rule_trigger",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "issuer x network matrix over 25 cells: other issuers healthy across all networks -> isolated to this bank",
+          "second concentrated segment amount_bucket=>10k (drop 0.51) orthogonal to the bank outage -> compound"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 183,
+            "gmv_at_risk_inr": 481200.39,
+            "gmv_at_risk_per_hour_inr": 240600.19,
+            "gmv_protected_estimate_inr": 180450.14,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 183,
+            "gmv_at_risk_inr": 481200.39
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "healthy",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "healthy",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": true,
+        "predicted": null,
+        "expected": [],
+        "false_positive": false
+      },
+      "result": {
+        "status": "inconclusive",
+        "root_cause": null,
+        "confidence": null,
+        "evidence_call_ids": [],
+        "disconfirmation": [],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 28,
+            "gmv_at_risk_inr": 50955.4,
+            "gmv_at_risk_per_hour_inr": 25477.7,
+            "gmv_protected_estimate_inr": 19108.28,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          }
+        },
+        "missing": "no anomalous segments crossed significance thresholds; no evidence of a fault in this window",
+        "rounds_used": 0,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "high_ticket_rule_10k",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "high_ticket_rule_10k",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "rule_trigger:10000",
+        "expected": [
+          "rule_trigger:10000"
+        ],
+        "confidence": 0.9133204633204632,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "rule_trigger:10000",
+        "confidence": 0.9133204633204632,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "failure-code mix over whole window: {'rule_declined': 9, 'network_timeout': 8, 'insufficient_funds': 8, 'issuer_declined': 6, 'beneficiary_bank_timeout': 5, 'vpa_invalid': 1}; dominant=rule_declined"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 37,
+            "gmv_at_risk_inr": 197361.54,
+            "gmv_at_risk_per_hour_inr": 98680.77,
+            "gmv_protected_estimate_inr": 74010.58,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 37,
+            "gmv_at_risk_inr": 197361.54
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "network_degradation_rupay",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "network_degradation_rupay",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "network_degradation:rupay",
+        "expected": [
+          "network_degradation:rupay"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "network_degradation:rupay",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "network x issuer matrix: degradation spans multiple issuers -> network-level issue"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 72,
+            "gmv_at_risk_inr": 124245.75,
+            "gmv_at_risk_per_hour_inr": 62122.87,
+            "gmv_protected_estimate_inr": 46592.15,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 72,
+            "gmv_at_risk_inr": 124245.75
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "network_degradation_visa",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "network_degradation_visa",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "network_degradation:visa",
+        "expected": [
+          "network_degradation:visa"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "network_degradation:visa",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "network x issuer matrix: degradation spans multiple issuers -> network-level issue"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 146,
+            "gmv_at_risk_inr": 317885.31,
+            "gmv_at_risk_per_hour_inr": 158942.65,
+            "gmv_protected_estimate_inr": 119206.99,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 146,
+            "gmv_at_risk_inr": 317885.31
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "noisy_bank_outage_hdfc",
+      "tier": "noisy",
+      "score": {
+        "scenario_id": "noisy_bank_outage_hdfc",
+        "tier": "noisy",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "bank_outage:HDFC",
+        "expected": [
+          "bank_outage:hdfc"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "bank_outage:HDFC",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "issuer x network matrix over 25 cells: other issuers healthy across all networks -> isolated to this bank"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 160,
+            "gmv_at_risk_inr": 295245.7,
+            "gmv_at_risk_per_hour_inr": 147622.85,
+            "gmv_protected_estimate_inr": 110717.14,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 160,
+            "gmv_at_risk_inr": 295245.7
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "noisy_network_amex",
+      "tier": "noisy",
+      "score": {
+        "scenario_id": "noisy_network_amex",
+        "tier": "noisy",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "network_degradation:amex",
+        "expected": [
+          "network_degradation:amex"
+        ],
+        "confidence": 0.9707112970711297,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "network_degradation:amex",
+        "confidence": 0.9707112970711297,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "network x issuer matrix: degradation spans multiple issuers -> network-level issue"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 40,
+            "gmv_at_risk_inr": 73130.81,
+            "gmv_at_risk_per_hour_inr": 36565.4,
+            "gmv_protected_estimate_inr": 27424.05,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 40,
+            "gmv_at_risk_inr": 73130.81
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "red_herring_campaign_vs_outage",
+      "tier": "red_herring",
+      "score": {
+        "scenario_id": "red_herring_campaign_vs_outage",
+        "tier": "red_herring",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "bank_outage:HDFC",
+        "expected": [
+          "bank_outage:hdfc"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "bank_outage:HDFC",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "issuer x network matrix over 25 cells: other issuers healthy across all networks -> isolated to this bank"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 258,
+            "gmv_at_risk_inr": 459819.07,
+            "gmv_at_risk_per_hour_inr": 229909.53,
+            "gmv_protected_estimate_inr": 172432.15,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 258,
+            "gmv_at_risk_inr": 459819.07
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "retry_storm_gateway",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "retry_storm_gateway",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "retry_storm:gateway",
+        "expected": [
+          "retry_storm:gateway"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 1
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "retry_storm:gateway",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001"
+        ],
+        "disconfirmation": [
+          "failure-code mix {'gateway_timeout': 330, 'issuer_declined': 7, 'network_timeout': 7, 'insufficient_funds': 6, 'beneficiary_bank_timeout': 4, 'vpa_invalid': 1}: gateway_timeout dominates and degradation is diffuse across all segments -> retry storm"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 355,
+            "gmv_at_risk_inr": 735047.04,
+            "gmv_at_risk_per_hour_inr": 367523.52,
+            "gmv_protected_estimate_inr": 275642.64,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 355,
+            "gmv_at_risk_inr": 735047.04
+          }
+        },
+        "missing": null,
+        "rounds_used": 1,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    },
+    {
+      "scenario_id": "settlement_delay_mch007",
+      "tier": "clean",
+      "score": {
+        "scenario_id": "settlement_delay_mch007",
+        "tier": "clean",
+        "correct": true,
+        "partial": false,
+        "inconclusive": false,
+        "predicted": "settlement_delay:mch_007",
+        "expected": [
+          "settlement_delay:mch_007"
+        ],
+        "confidence": 0.99,
+        "rounds_used": 2
+      },
+      "result": {
+        "status": "verdict",
+        "root_cause": "settlement_delay:mch_007",
+        "confidence": 0.99,
+        "evidence_call_ids": [
+          "call_001",
+          "call_002"
+        ],
+        "disconfirmation": [
+          "status split for mch_007: {'pending': 26, 'success': 21, 'failed': 1} \u2014 pending spike with no failure codes -> settlement delay"
+        ],
+        "impact": {
+          "estimated": {
+            "manual_baseline_minutes": 45.0,
+            "time_to_diagnosis_minutes": 0.0,
+            "hours_saved_vs_manual": 0.75,
+            "window_minutes": 120.0,
+            "non_success_txns_in_window": 54,
+            "gmv_at_risk_inr": 97354.52,
+            "gmv_at_risk_per_hour_inr": 48677.26,
+            "gmv_protected_estimate_inr": 36507.94,
+            "note": "GMV at risk is an upper bound: all non-success transactions in the window regardless of cause. gmv_protected assumes mitigation at diagnosis time."
+          },
+          "claimed_by_model": {
+            "transactions_affected": 54,
+            "gmv_at_risk_inr": 97354.52
+          }
+        },
+        "missing": null,
+        "rounds_used": 2,
+        "time_to_diagnosis_minutes": 0.0
+      }
+    }
+  ],
+  "standings": [
+    {
+      "agent": "rule",
+      "runs": 14,
+      "correct": 14,
+      "inconclusive": 2,
+      "false_positives": 0,
+      "latency_minutes": 0.0,
+      "llm_calls": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "est_cost_usd": 0.0,
+      "per_tier": {
+        "clean": {
+          "total": 9,
+          "correct": 9
+        },
+        "red_herring": {
+          "total": 2,
+          "correct": 2
+        },
+        "compound": {
+          "total": 1,
+          "correct": 1
+        },
+        "noisy": {
+          "total": 2,
+          "correct": 2
+        }
+      },
+      "any_estimated_tokens": false
+    }
+  ]
+}

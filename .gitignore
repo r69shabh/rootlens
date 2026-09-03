@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.duckdb
+*.wal
+
+# generated at runtime
+data/
+.DS_Store
