@@ -12,12 +12,19 @@ import os
 import time
 from abc import ABC, abstractmethod
 
-# Retry knobs. 3 attempts with 1s/2s backoff covers a transient 5xx or rate
-# limit without a long stall; the per-call timeout is generous because LLM
-# responses with tool-call prompts can be slow on the first attempt.
+# Retry knobs. 3 attempts with 1s/2s backoff covers a transient 5xx; rate
+# limits (429) get their own slower lane: up to 6 attempts with a 35s sleep,
+# which also lets a per-minute quota refill (e.g. Gemini free tier: 5/min).
+# The per-call timeout is generous because tool-call prompts can be slow.
 MAX_RETRIES = 3
+MAX_RATE_LIMIT_RETRIES = 6
 RETRY_BACKOFF_S = 1.0
+RATE_LIMIT_SLEEP_S = 35.0
 LLM_TIMEOUT_S = 60.0
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    return "429" in str(exc) or "ratelimit" in type(exc).__name__.lower()
 
 
 def _chat_with_retry(call):
@@ -27,18 +34,23 @@ def _chat_with_retry(call):
     response object. We retry on any exception except ValueError (which is the
     contract-violation signal from the agent loop and should propagate).
     """
+    rate_limit_hits = 0
     last_exc: Exception | None = None
-    for attempt in range(MAX_RETRIES):
+    for attempt in range(MAX_RETRIES + MAX_RATE_LIMIT_RETRIES):
         try:
             return call()
         except ValueError:
             raise
         except Exception as exc:  # noqa: BLE001 - retry on any transient provider error
             last_exc = exc
-            if attempt == MAX_RETRIES - 1:
+            if _is_rate_limit(exc) and rate_limit_hits < MAX_RATE_LIMIT_RETRIES:
+                rate_limit_hits += 1
+                time.sleep(RATE_LIMIT_SLEEP_S)
+                continue
+            if attempt >= MAX_RETRIES - 1 + rate_limit_hits:
                 break
             time.sleep(RETRY_BACKOFF_S * (attempt + 1))
-    raise RuntimeError(f"LLM call failed after {MAX_RETRIES} attempts: {last_exc}") from last_exc
+    raise RuntimeError(f"LLM call failed after retries: {last_exc}") from last_exc
 
 
 class LLMClient(ABC):
@@ -152,11 +164,11 @@ class AnthropicClient(LLMClient):
 
 class GeminiClient(OpenAIClient):
     """Gemini via its OpenAI-compatible endpoint. Model override with
-    GEMINI_MODEL (default gemini-2.0-flash)."""
+    GEMINI_MODEL (default gemini-3.6-flash)."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
         super().__init__(
-            model=model or os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            model=model or os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
             api_key=api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )

@@ -105,7 +105,14 @@ def test_replay_caches_full_agent_transcript(tmp_path):
     rec.cache.save()
     assert r1.status == "verdict"
     r2 = diagnose(con, llm=ReplayLLMClient(ReplayCache(cache_path)), scenario_id="replay", **DIAG)
-    assert r2.to_json() == r1.to_json()
+    # wall-clock timing differs between record and replay runs by design;
+    # compare everything else for transcript fidelity
+    j1, j2 = r1.to_json(), r2.to_json()
+    for j in (j1, j2):
+        j.pop("time_to_diagnosis_minutes", None)
+        j.get("impact", {}).pop("time_to_diagnosis_minutes", None)
+        j.get("impact", {}).get("estimated", {}).pop("time_to_diagnosis_minutes", None)
+    assert j2 == j1
 
 
 def test_impact_estimate_honest_bounds(tmp_path=None):
