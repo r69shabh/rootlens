@@ -150,15 +150,15 @@ class AnthropicClient(LLMClient):
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
-class DeepSeekClient(OpenAIClient):
-    """DeepSeek via its OpenAI-compatible endpoint. Model override with
-    DEEPSEEK_MODEL (default deepseek-chat)."""
+class GeminiClient(OpenAIClient):
+    """Gemini via its OpenAI-compatible endpoint. Model override with
+    GEMINI_MODEL (default gemini-2.0-flash)."""
 
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
         super().__init__(
-            model=model or os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
-            api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
-            base_url="https://api.deepseek.com",
+            model=model or os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            api_key=api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
 
 
@@ -169,8 +169,8 @@ def get_client(provider: str, model: str | None = None) -> LLMClient:
         return OpenAIClient(model or "gpt-4o-mini")
     if provider == "anthropic":
         return AnthropicClient(model or "claude-sonnet-4-5")
-    if provider == "deepseek":
-        return DeepSeekClient(model)
+    if provider == "gemini":
+        return GeminiClient(model)
     raise ValueError(f"unknown provider {provider!r}")
 
 

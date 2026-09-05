@@ -139,7 +139,7 @@ def main() -> int:
     ap.add_argument(
         "--agent",
         default="rule",
-        help="'rule' or 'openai' / 'anthropic' / 'deepseek' (optionally 'openai:gpt-4o-mini')",
+        help="'rule' or 'openai' / 'anthropic' / 'gemini' (optionally 'openai:gpt-4o-mini')",
     )
     ap.add_argument("--scenarios", default=None, help="comma-separated scenario ids or tier names")
     ns = ap.parse_args()

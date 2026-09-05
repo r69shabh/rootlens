@@ -73,7 +73,7 @@ def deterministic_check(con, faults, segments) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenario", default="bank_outage_icici", choices=sorted(SCENARIOS))
-    ap.add_argument("--provider", default=None, choices=["openai", "anthropic", "deepseek"])
+    ap.add_argument("--provider", default=None, choices=["openai", "anthropic", "gemini"])
     ap.add_argument(
         "--record",
         default=None,
