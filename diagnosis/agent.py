@@ -35,11 +35,15 @@ Tools available (JSON args):
 
 Respond with EXACTLY ONE JSON object per turn:
 1. To call a tool: {"thought": "...", "tool": "<tool name>", "args": { ... }}
-2. To give a verdict (only when confident > {conf}):
-   {{"verdict": {{"root_cause": "<label like bank_outage:ICICI>", "confidence": <0..1>,
-     "evidence": ["<call_id>", ...],
-     "disconfirmation": ["what you checked that could have disproved this, and the result"],
-     "impact": {{"transactions_affected": <n>, "note": "..."}}}}}}
+ 2. To give a verdict (only when confident > {conf}):
+    {{"verdict": {{"root_cause": "<label like bank_outage:ICICI>", "confidence": <0..1>,
+      "evidence": ["<call_id>", ...],
+      "disconfirmation": ["what you checked that could have disproved this, and the result"],
+      "impact": {{"transactions_affected": <n>, "note": "..."}}}}}}
+   The "evidence" list must contain ONLY the literal call_id strings from
+   earlier tool results in this conversation (they look like "call_001",
+   "call_002", ...). Never write a description of a call ("the issuer query")
+   — copy the call_id token exactly, or the verdict is auto-rejected.
 3. If the hypothesis budget is exhausted without confidence:
    {{"inconclusive": {{"missing": "what data would resolve this"}}}}
 
