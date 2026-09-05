@@ -86,12 +86,17 @@ class ScriptedLLMClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    def __init__(self, model: str = "gpt-4o-mini", api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         super().__init__()
         from openai import OpenAI  # lazy import: llm extras are optional
 
         self.model_name = model
-        self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"), base_url=base_url)
 
     def chat(self, system: str, messages: list[dict]) -> str:
         resp = _chat_with_retry(
@@ -145,6 +150,18 @@ class AnthropicClient(LLMClient):
         return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
 
 
+class DeepSeekClient(OpenAIClient):
+    """DeepSeek via its OpenAI-compatible endpoint. Model override with
+    DEEPSEEK_MODEL (default deepseek-chat)."""
+
+    def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
+        super().__init__(
+            model=model or os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+            api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com",
+        )
+
+
 def get_client(provider: str, model: str | None = None) -> LLMClient:
     if provider == "scripted":
         return ScriptedLLMClient([])
@@ -152,6 +169,8 @@ def get_client(provider: str, model: str | None = None) -> LLMClient:
         return OpenAIClient(model or "gpt-4o-mini")
     if provider == "anthropic":
         return AnthropicClient(model or "claude-sonnet-4-5")
+    if provider == "deepseek":
+        return DeepSeekClient(model)
     raise ValueError(f"unknown provider {provider!r}")
 
 

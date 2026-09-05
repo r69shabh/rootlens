@@ -42,8 +42,8 @@ with st.sidebar:
     provider = None
     cache_path = "data/replay_cache.json"
     if mode == "Live provider":
-        provider = st.selectbox("Provider", ["openai", "anthropic"])
-        st.caption("Key read from OPENAI_API_KEY / ANTHROPIC_API_KEY")
+        provider = st.selectbox("Provider", ["openai", "anthropic", "deepseek"])
+        st.caption("Key read from OPENAI_API_KEY / ANTHROPIC_API_KEY / DEEPSEEK_API_KEY")
     else:
         cache_path = st.text_input("Replay cache file", cache_path)
     if st.button("Diagnose", type="primary", use_container_width=True):

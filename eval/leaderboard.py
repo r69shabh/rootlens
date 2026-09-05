@@ -11,6 +11,7 @@ PROVIDER_PRICES: dict[str, dict[str, float]] = {
     "rule-baseline": {"input": 0.0, "output": 0.0},
     "openai:gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "anthropic:claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+    "deepseek": {"input": 0.27, "output": 1.10},
 }
 
 
