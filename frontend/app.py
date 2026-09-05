@@ -65,6 +65,16 @@ with st.sidebar:
                     bounds.current_end,
                 )
                 if mode == "Replay cache":
+                    from pathlib import Path as _Path
+
+                    if not _Path(cache_path).exists():
+                        st.error(
+                            f"Replay cache file not found: `{cache_path}`. "
+                            "Check the path (relative to where you launched "
+                            "streamlit) or record one via "
+                            "`scripts/run_scenario.py --record <file>`."
+                        )
+                        st.stop()
                     try:
                         llm = ReplayLLMClient(ReplayCache(cache_path))
                     except (FileNotFoundError, json.JSONDecodeError) as exc:
