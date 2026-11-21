@@ -13,7 +13,10 @@ SUCCESS_RATE = "AVG(CASE WHEN status = 'success' THEN 1.0 ELSE 0.0 END)"
 # prevents the two from drifting apart.
 SCAN_MIN_VOLUME = 15  # ignore slices with < N txns in the current window
 SCAN_MIN_DROP = 0.08  # ignore slices with smaller success-rate drops
-SCAN_MIN_Z = 4.0  # two-proportion z-test threshold (~40 slices tested)
+# ~40 slices per scan. A Bonferroni 0.05 line is about z=3.2; 4.0 dropped the
+# canonical 10:00-12:00 UTC >10k rule (seed 42, z≈3.81). 3.7 still leaves
+# healthy and benign-spike windows with no slice above SCAN_MIN_DROP.
+SCAN_MIN_Z = 3.7
 ONSET_MIN_DROP = 0.10  # a window hour is "degraded" if it falls this much
 ONSET_MIN_VOLUME = 20  # ...and carries at least this many txns
 

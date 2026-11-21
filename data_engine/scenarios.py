@@ -17,7 +17,12 @@ from data_engine.faults import (
     RetryStormInjector,
     SettlementDelayInjector,
 )
-from data_engine.generator import DEFAULT_WINDOW_START, TransactionGenerator, WindowConfig
+from data_engine.generator import (
+    DEFAULT_WINDOW_START,
+    TransactionGenerator,
+    WindowConfig,
+    utc_connection,
+)
 
 
 def record_fault_events(con, faults: list[InjectedFault]) -> None:
@@ -44,7 +49,7 @@ def _eval_con_for(faults: list[InjectedFault]) -> duckdb.DuckDBPyConnection:
     bug can never leak ground truth into the model's context. The eval-only
     connection is closed after the eval harness reads from it.
     """
-    eval_con = duckdb.connect()
+    eval_con = utc_connection()
     eval_con.execute("""
         CREATE TABLE fault_events (
             fault_id VARCHAR, fault_type VARCHAR,

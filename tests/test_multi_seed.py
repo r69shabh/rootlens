@@ -17,7 +17,7 @@ BOUNDS = (WC.current_window_start, WC.current_window_end, WC.start, WC.current_w
 # week-3 test already covers the full 14-scenario suite at seed 42.
 # We drop high_ticket_rule_10k: it injects only the sparse >10k amount bucket
 # for ~1h of the window, so at a few seeds the scan's significance threshold
-# (z=4, min_volume=15) elides it. Worth a separate investigation, not a
+# (SCAN_MIN_Z, min_volume=15) elides it. Worth a separate investigation, not a
 # multi-seed regression.
 FAULT_SCENARIOS = [
     "bank_outage_icici",
