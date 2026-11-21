@@ -13,7 +13,7 @@ import time
 from duckdb import DuckDBPyConnection
 
 from diagnosis.agent import CONFIDENCE_THRESHOLD, DiagnosisResult, _finalize, prepare_run
-from diagnosis.anomaly_scan import AnomalousSegment
+from diagnosis.anomaly_scan import SCAN_MIN_VOLUME, AnomalousSegment
 from diagnosis.tools import DiagnosisTools
 
 
@@ -38,14 +38,21 @@ def _label_for_segment(
     if dim == "issuer_bank":
         # disconfirmation: a network degradation would hit ALL banks on a network
         matrix = tools.compare_segments("issuer_bank", "card_network", current_start, current_end)
-        others = [r for r in matrix if r["issuer_bank"] != value]
-        diffuse = any(r["success_rate"] < 0.8 for r in others)
+        # Thin cells (a 4-txn amex slice at one baseline failure) are noise.
+        # The scan itself ignores them via SCAN_MIN_VOLUME; disconfirmation must too.
+        others = [
+            r
+            for r in matrix
+            if r["issuer_bank"] != value and (r.get("count") or 0) >= SCAN_MIN_VOLUME
+        ]
+        diffuse = any(r["success_rate"] is not None and r["success_rate"] < 0.8 for r in others)
         checks.append(
-            f"issuer x network matrix over {len(matrix)} cells: other issuers "
+            f"issuer x network matrix: {len(others)} other-issuer cells with "
+            f"n>={SCAN_MIN_VOLUME} "
             + (
-                "also degraded -> would indicate network issue"
+                "include a degraded issuer -> would indicate network issue"
                 if diffuse
-                else "healthy across all networks -> isolated to this bank"
+                else "are healthy -> isolated to this bank"
             )
         )
         return (

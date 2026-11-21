@@ -81,6 +81,19 @@ class WindowBounds:
     current_end: datetime
 
 
+def utc_connection() -> duckdb.DuckDBPyConnection:
+    """In-memory DuckDB whose session timezone is UTC.
+
+    Transaction timestamps are naive clock times in UTC. DuckDB converts
+    timezone-aware bind parameters into the session TimeZone before comparing
+    them to TIMESTAMP, so a host outside UTC (CI is UTC; a laptop in
+    Asia/Kolkata is not) would otherwise scan a different window.
+    """
+    con = duckdb.connect()
+    con.execute("SET TimeZone = 'UTC'")
+    return con
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS transactions (
     txn_id VARCHAR,
@@ -191,7 +204,7 @@ class TransactionGenerator:
 
     def generate(self) -> duckdb.DuckDBPyConnection:
         """Create a fresh in-memory DuckDB with schema + baseline transactions."""
-        con = duckdb.connect()
+        con = utc_connection()
         con.execute(SCHEMA)
         data = []
         for day in range(self.window.baseline_days + 1):
